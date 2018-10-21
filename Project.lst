@@ -1,0 +1,2128 @@
+Microsoft (R) Macro Assembler Version 14.00.24210.0	    05/31/17 17:43:55
+potapanje_podmornica.asm				     Page 1 - 1
+
+
+				INCLUDE Irvine32.inc
+			      C ; Include file for Irvine32.lib             (Irvine32.inc)
+			      C 
+			      C ;OPTION CASEMAP:NONE		; optional: make identifiers case-sensitive
+			      C 
+			      C INCLUDE SmallWin.inc		; MS-Windows prototypes, structures, and constants
+			      C .NOLIST
+			      C .LIST
+			      C 
+			      C INCLUDE VirtualKeys.inc
+			      C ; VirtualKeys.inc
+			      C .NOLIST
+			      C .LIST
+			      C 
+			      C 
+			      C .NOLIST
+			      C .LIST
+			      C 
+				INCLUDE macros.inc
+			      C .NOLIST
+			      C .LIST
+			      C 
+
+ = 000000D1			BUFFER_SIZE = 209
+ = 00000064			VALID_SIZE = 64h
+
+ 00000000			.data
+ 00000000  000000D1 [		buffer BYTE BUFFER_SIZE DUP(?) ; Buffer za ucitavanje iz ulaznog fajla
+	    00
+	   ]
+ 000000D1 00			cnt BYTE ?
+ 000000D2  00000050 [		filename    BYTE 80 DUP(0)
+	    00
+	   ]
+ 00000122 00000000		fileHandle  HANDLE ?
+
+ 00000126  00000064 [		array1 BYTE VALID_SIZE DUP(?) ; Niz sa informacijama o polozaju brodica prvog igraca
+	    00
+	   ]
+ 0000018A  00000064 [		array2 BYTE VALID_SIZE DUP(?) ; Niz sa informacijama o polozaju brodica drugog igraca
+	    00
+	   ]
+ 000001EE 2D 31 32 33 34	allowedCharacters BYTE '-1234567890' ; dozvoljeni karakteri u tabeli
+	   35 36 37 38 39
+	   30
+ 000001F9 00000000		i DWORD ?
+ 000001FD 00000000		j DWORD ?
+ 00000201 2D			h BYTE '-'
+
+				; brojaci za proveru broja unetih brodica
+ 00000202 00			numFive BYTE 0
+ 00000203 00			numFour BYTE 0
+ 00000204 00			numThree BYTE 0
+ 00000205 00			numTwo BYTE 0
+
+				; pomocne promenljive
+ 00000206 00			player BYTE 0
+ 00000207 00			distance BYTE 0
+
+ = 0dh,0ah			endl EQU <0dh,0ah>			; end of line sekvenca
+ 00000208 49 67 72 61 63	message6 BYTE "Igrac 1:", 0 ;Labele za oznaku koji igrac je trenutno na potezu
+	   20 31 3A 00
+ 00000211 49 67 72 61 63	message7 BYTE "Igrac 2:", 0
+	   20 32 3A 00
+
+ 0000021A 44 6F 62 72 6F	message8 BYTE "Dobrodosli u potapanje podmornica! Igrac1 je prvi na potezu. Unesite koordinate:", 0
+	   64 6F 73 6C 69
+	   20 75 20 70 6F
+	   74 61 70 61 6E
+	   6A 65 20 70 6F
+	   64 6D 6F 72 6E
+	   69 63 61 21 20
+	   49 67 72 61 63
+	   31 20 6A 65 20
+	   70 72 76 69 20
+	   6E 61 20 70 6F
+	   74 65 7A 75 2E
+	   20 55 6E 65 73
+	   69 74 65 20 6B
+	   6F 6F 72 64 69
+	   6E 61 74 65 3A
+	   00
+
+				;Poruke o rezultati odigranog poteza i kraju igrice
+ 0000026B 50 72 6F 6D 61	message BYTE "Promasili ste, sada igra drugi igrac" , 0
+	   73 69 6C 69 20
+	   73 74 65 2C 20
+	   73 61 64 61 20
+	   69 67 72 61 20
+	   64 72 75 67 69
+	   20 69 67 72 61
+	   63 00
+ 00000290 00000025		messageSize DWORD ($-message)
+
+ 00000294 50 6F 67 6F 64	prompt BYTE "Pogodili ste, igrajte ponovo", 0
+	   69 6C 69 20 73
+	   74 65 2C 20 69
+	   67 72 61 6A 74
+	   65 20 70 6F 6E
+	   6F 76 6F 00
+ 000002B1 0000001D		promptSize DWORD ($-prompt)
+
+ 000002B5 4E 65 69 73 70	message2 BYTE "Neispravan unos, pokusaj ponovo"
+	   72 61 76 61 6E
+	   20 75 6E 6F 73
+	   2C 20 70 6F 6B
+	   75 73 61 6A 20
+	   70 6F 6E 6F 76
+	   6F
+ 000002D4 0000001F		message2Size DWORD ($-message2)
+
+ 000002D8 50 6F 62 65 64	message3 BYTE "Pobedio je Igrac 1, cestitamo!", 0
+	   69 6F 20 6A 65
+	   20 49 67 72 61
+	   63 20 31 2C 20
+	   63 65 73 74 69
+	   74 61 6D 6F 21
+	   00
+ 000002F7 0000001F		message3Size DWORD ($-message3)
+
+ 000002FB 50 6F 62 65 64	message4 BYTE "Pobedio je Igrac 2, cestitamo!", 0
+	   69 6F 20 6A 65
+	   20 49 67 72 61
+	   63 20 32 2C 20
+	   63 65 73 74 69
+	   74 61 6D 6F 21
+	   00
+ 0000031A 0000001F		message4Size DWORD ($-message4)
+
+ 0000031E			message5 LABEL BYTE   ; zaglavlje tabele za podmornice
+ 0000031E  20 20 20 20 20		BYTE "      Podmornice 1	      Podmornice 2" , endl
+	   20 50 6F 64 6D
+	   6F 72 6E 69 63
+	   65 20 31 09 20
+	   20 20 20 20 20
+	   50 6F 64 6D 6F
+	   72 6E 69 63 65
+	   20 32 0D 0A
+ 00000345  20 20 20 41 20		BYTE "   A B C D E F G H I J     A B C D E F G H I J", endl
+	   42 20 43 20 44
+	   20 45 20 46 20
+	   47 20 48 20 49
+	   20 4A 20 20 20
+	   20 20 41 20 42
+	   20 43 20 44 20
+	   45 20 46 20 47
+	   20 48 20 49 20
+	   4A 0D 0A
+ 00000375 00000057		message5Size DWORD ($-message5)
+
+				;Niz koji omogucava ispis rednog broja reda tabele
+ 00000379 30 31 32 33 34	array BYTE '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' 
+	   35 36 37 38 39
+ = 0000000A			arraySize EQU SIZEOF array
+
+ 00000383  0000000A [		crtice1 BYTE 10 DUP(1 DUP('5'), 10 DUP('-'), 1 DUP('	')) ;nizovi za stampanje
+	    00000001 [
+	     35
+	    ]
+	    0000000A [
+	     2D
+	    ]
+	    00000001 [
+	     09
+	    ]
+	   ]
+ = 00000078			crtice1Size EQU SIZEOF crtice1
+
+ 000003FB  0000000A [		crtice2 BYTE 10 DUP(1 DUP('5'), 10 DUP('-'), 1 DUP('	'))
+	    00000001 [
+	     35
+	    ]
+	    0000000A [
+	     2D
+	    ]
+	    00000001 [
+	     09
+	    ]
+	   ]
+ = 00000078			crtice2Size EQU SIZEOF crtice2
+
+ 00000473 0000			jind WORD 0 ;brojaci za upis rednog broja u nizove crtice1 i crtice2
+ 00000475 0000			ind WORD 0
+
+
+ 00000477 0000			k WORD 0
+
+ = 00000004			MAX = 4  ; promenljive za proveru koliko je karaktera uneto za koordinatu brodica
+ 00000479  00000005 [		unos BYTE MAX+1 dup(?)
+	    00
+	   ]
+
+				;i BYTE 10 ;pomeraj za trazenje brodica u nizu
+ 0000047E 0C			idvan BYTE 12 ; pomeraj za stampanje na konzolu
+
+ 0000047F 00			broj BYTE 0 ; broj koji je unet za koordinatu
+ 00000480 00			slovo BYTE 0 ; slovo koje je uneto za koordinatu
+
+ 00000481 1E			brojac1 BYTE 30 ; brojac za 1.brodice
+ 00000482 1E			brojac2 BYTE 30 ; brojac za 2.brodice
+
+ 00000483 00000000		consoleHandle HANDLE 0     ; handle za standardni izlaz(konzolu)
+ 00000487 00000000		bytesWritten  DWORD ?      ; broj bajtova koji je ispisan
+
+ 0000048B 00			igra1 BYTE 0 ; promenljive koje odredjuju koji igrac igra (igra1 igra2)
+ 0000048C 00			igra2 BYTE 0 ; i da li se desio promasaj ili nije (prom1 prom2)
+ 0000048D 00			prom1 BYTE 0
+ 0000048E 00			prom2 BYTE 0
+
+ 00000000			.code
+ 00000000			paralelnaStampa PROC
+ 00000000  E8 00000000 E		call Clrscr
+				  ; Get the console output handle:
+					INVOKE GetStdHandle, STD_OUTPUT_HANDLE
+ 00000005  6A F5	   *	    push    -00000000Bh
+ 00000007  E8 00000000 E   *	    call   GetStdHandle
+ 0000000C  A3 00000483 R		mov consoleHandle,eax
+				  ; Write a string to the console:
+					INVOKE WriteConsole,
+					  consoleHandle,		; konzolni output handle
+					  ADDR message5,       	; pokazivac na string
+					  message5Size,			; duzina stringa
+					  ADDR bytesWritten,	;vraca broj ispisanih bajtova
+					  0					; ne koristi se
+ 00000011  6A 00	   *	    push   +000000000h
+ 00000013  68 00000487 R   *	    push   OFFSET bytesWritten
+ 00000018  FF 35 00000375 R *	    push   message5Size
+ 0000001E  68 0000031E R   *	    push   OFFSET message5
+ 00000023  FF 35 00000483 R *	    push   consoleHandle
+ 00000029  E8 00000000 E   *	    call   WriteConsoleA
+ 0000002E  B9 0000000A			mov ecx, arraySize ; u ecx se smesta duzina niza koji odredjuje kolone
+ 00000033  66| C7 05			mov ind, 0 ;indeks za upis kolone brojeva u prvu tabelu
+	   00000475 R
+	   0000
+ 0000003C  66| C7 05			mov jind, 0 ; indeks za upis kolone brojeva u drugu tabelu
+	   00000473 R
+	   0000
+ 00000045  80 3D 0000048D R		cmp prom1, 0 ; da li je prvi igrac pogodio ili promasio brodic
+	   00
+ 0000004C  75 3B			jne omas1
+ 0000004E  80 3D 0000048E R		cmp prom2, 0 ; da li je drugi igrac pogodio ili omasio brodic
+	   00
+ 00000055  75 42			jne omas2
+ 00000057  80 3D 0000048B R		cmp igra1, 0 ; igrac1 je pogodio
+	   00
+ 0000005E  74 09			je igrac1
+ 00000060  80 3D 0000048C R		cmp igra2, 0 ;igrac2  je pogodio 
+	   00
+ 00000067  74 10			je igrac2
+
+ 00000069			igrac1: ; upis blok karaktera u niz i produzetak na dodavanje brojeva u kolonu
+ 00000069  B0 FE			mov al, 254
+ 0000006B  88 83 000003FB R		mov crtice2[ebx], al
+ 00000071  33 DB			xor ebx, ebx
+ 00000073  33 C0			xor eax, eax
+ 00000075  33 D2			xor edx, edx	
+ 00000077  EB 2E			jmp dodajbr1
+
+ 00000079			igrac2: ; upis blok karaktera u niz i produzetak na dodavanje brojeva u kolonu
+ 00000079  B0 FE			mov al, 254
+ 0000007B  88 83 00000383 R		mov crtice1[ebx], al
+ 00000081  33 DB			xor ebx, ebx
+ 00000083  33 C0			xor eax, eax
+ 00000085  33 D2			xor edx, edx
+ 00000087  EB 1E			jmp dodajbr1	
+
+ 00000089			omas1:  ; upis X karaktera zbog omaske i produzetak na dodavanje brojeva u kolonu
+ 00000089  B0 78			mov al, 'x'
+ 0000008B  88 83 000003FB R		mov crtice2[ebx], al
+ 00000091  33 DB			xor ebx, ebx
+ 00000093  33 C0			xor eax, eax
+ 00000095  33 D2			xor edx, edx	
+ 00000097  EB 0E			jmp dodajbr1
+
+ 00000099			omas2: ; upis X karaktera zbog omaske i produzetak na dodavanje brojeva u kolonu
+ 00000099  B0 78			mov al, 'x'
+ 0000009B  88 83 00000383 R		mov crtice1[ebx], al
+ 000000A1  33 DB			xor ebx, ebx
+ 000000A3  33 C0			xor eax, eax
+ 000000A5  33 D2			xor edx, edx
+
+ 000000A7			dodajbr1: ;dodatak brojeva u kolonu za prvu tabelu
+ 000000A7  66| 8B 1D			mov bx, ind
+	   00000475 R
+ 000000AE  8A 93 00000379 R		mov dl, array[bx]
+ 000000B4  66| B8 000C			mov ax, 12
+ 000000B8  8A DA			mov bl, dl
+ 000000BA  66| F7 25			mul ind
+	   00000475 R
+ 000000C1  8A D3			mov dl, bl
+ 000000C3  66| 8B D8			mov bx, ax
+ 000000C6  8A C2			mov al, dl
+ 000000C8  88 93 00000383 R		mov crtice1[bx], dl;
+ 000000CE  66| FF 05			inc ind
+	   00000475 R
+ 000000D5  E2 D0			loop dodajbr1
+
+ 000000D7  33 C0			xor eax, eax
+ 000000D9  33 DB			xor ebx, ebx
+ 000000DB  33 D2			xor edx, edx
+ 000000DD  B9 0000000A			mov ecx, arraySize
+					
+ 000000E2			dodajbr2: ;dodatak brojeva u kolonu za drugu tabelicu
+ 000000E2  66| 8B 1D			mov bx, jind
+	   00000473 R
+ 000000E9  8A 93 00000379 R		mov dl, array[bx]
+ 000000EF  66| B8 000C			mov ax, 12
+ 000000F3  8A DA			mov bl, dl
+ 000000F5  66| F7 25			mul jind
+	   00000473 R
+ 000000FC  8A D3			mov dl, bl
+ 000000FE  66| 8B D8			mov bx, ax
+ 00000101  8A C2			mov al, dl
+ 00000103  88 93 000003FB R		mov crtice2[bx], dl;
+ 00000109  66| FF 05			inc jind
+	   00000473 R
+ 00000110  E2 D0			loop dodajbr2
+
+ 00000112  BE 000003FB R		mov esi, OFFSET crtice2 ;setuje se na pocetak tabele za ispis drugog igraca
+ 00000117  B9 00000078			mov ecx, crtice1Size ;ecx uzima vrednost velicine tabela
+ 0000011C  33 D2			xor edx, edx ; ciscenje registara od zaostalih informacija
+ 0000011E  33 C0			xor eax, eax
+ 00000120  33 DB			xor ebx, ebx
+
+ 00000122  BF 00000383 R		mov edi, OFFSET crtice1 ;edi se postavlja na pocetak tabele 
+
+ 00000127			istampaj: ; stampanje
+ 00000127  B0 20			mov al, ' ' ; upis razmaka radi preglednosti
+ 00000129  E8 00000000 E		call writechar ;procedura iz Irvin biblioteke za ispis jednog karaktera
+ 0000012E  8A 04 3A			mov al, [edi+edx] ; dodatak prvog clana iz tabele prvog igraca
+ 00000131  E8 00000000 E		call writechar
+ 00000136  3C 09			cmp al, '	' ; provera da li je poslednji karaktera TAB
+								  ; i onda se prelazi na stampanje druge tabele
+ 00000138  74 0A			je predji ; prelazi se na stampanje druge tabele
+ 0000013A  42				inc edx ; predji na sledeci karakter
+ 0000013B  83 FA 78			cmp edx, 120 ; provera da li je kraj tabele
+ 0000013E  74 32			je kraj
+ 00000140  E2 E5			loop istampaj ; povratak na stampanje ako nije kraj tabele
+
+ 00000142  EB 2E		    jmp kraj
+ 00000144			predji:
+ 00000144  42				inc edx ;edx se uvecava da bi se dohvatio prvi naredni karakter iz 1.tabele
+ 00000145  EB 15			jmp istampaj2 ; prelazi se na stampanje druge tabele
+ 00000147			lupiendl: ; stampanje end of line karaktera da se spusti u drugi red
+ 00000147  B0 0D			mov al, 0Dh
+ 00000149  E8 00000000 E		call writechar
+ 0000014E  B0 0A			mov al, 0Ah
+ 00000150  E8 00000000 E		call WriteChar
+ 00000155  83 F9 0A			cmp ecx, 10 ; provera ecx, kako se ne bi stampao dodatni red
+ 00000158  74 18			je kraj
+ 0000015A  EB CB			jmp istampaj ; povratak na stampanje prve tabele
+
+ 0000015C			istampaj2:
+ 0000015C  B0 20			mov al, ' ' ;ponavlja se isti postupak za stampanje 2. tabele kao i za prvu
+ 0000015E  E8 00000000 E		call writechar ; samo se koriste registri ebx i esi
+ 00000163  8A 04 33			mov al, [esi+ebx]
+ 00000166  43				inc ebx
+ 00000167  3C 09			cmp al, '	'
+ 00000169  E8 00000000 E		call writechar
+ 0000016E  74 D7			je lupiendl ; obavezno spustanje u novi red nakon kraja reda u drugoj tabeli
+ 00000170  75 EA			jne istampaj2 ; ako nije kraj reda stampaj jos karatkera
+					
+
+ 00000172			kraj: ; kraj procedure paralelna stampa
+ 00000172  C3				ret
+ 00000173			paralelnaStampa endp
+
+ 00000173			stampa_blank PROC ; procedura koja predstavlja pocetak igrice gde se 
+							      ; ispisuju prazne tabele i ispisuje ulazna poruka
+ 00000173  BA 0000021A R		mov edx, OFFSET message8 ; ulazna poruka dobrodoslice
+ 00000178  E8 00000000 E		call WriteString
+ 0000017D  E8 00000000 E		call Crlf
+				  ; Get the console output handle:
+					INVOKE GetStdHandle, STD_OUTPUT_HANDLE
+ 00000182  6A F5	   *	    push    -00000000Bh
+ 00000184  E8 00000000 E   *	    call   GetStdHandle
+ 00000189  A3 00000483 R		mov consoleHandle,eax
+				  ; Write a string to the console:
+					INVOKE WriteConsole,
+					  consoleHandle,		; handle izlazne konzole
+					  ADDR message5,       	; pokazivac na string
+					  message5Size,			; duzina stringa
+					  ADDR bytesWritten,	; broj ispisanih bajtova
+					  0					; ne koristi se
+ 0000018E  6A 00	   *	    push   +000000000h
+ 00000190  68 00000487 R   *	    push   OFFSET bytesWritten
+ 00000195  FF 35 00000375 R *	    push   message5Size
+ 0000019B  68 0000031E R   *	    push   OFFSET message5
+ 000001A0  FF 35 00000483 R *	    push   consoleHandle
+ 000001A6  E8 00000000 E   *	    call   WriteConsoleA
+ 000001AB  B9 0000000A			mov ecx, arraySize ; duzina niza kolone sa brojevima u tabeli
+ 000001B0  66| C7 05			mov ind, 0 ;promenljive koje sluze za iteraciju kroz array
+	   00000475 R
+	   0000
+ 000001B9  66| C7 05			mov jind, 0
+	   00000473 R
+	   0000
+ 000001C2  33 DB			xor ebx, ebx
+ 000001C4  33 D2			xor edx, edx
+
+ 000001C6			dodajbr1: ;dodatak brojeva u prvu tabelu
+ 000001C6  66| 8B 1D			mov bx, ind
+	   00000475 R
+ 000001CD  8A 93 00000379 R		mov dl, array[bx]
+ 000001D3  66| B8 000C			mov ax, 12
+ 000001D7  8A DA			mov bl, dl
+ 000001D9  66| F7 25			mul ind
+	   00000475 R
+ 000001E0  8A D3			mov dl, bl
+ 000001E2  66| 8B D8			mov bx, ax
+ 000001E5  8A C2			mov al, dl
+ 000001E7  88 93 00000383 R		mov crtice1[bx], dl;
+ 000001ED  66| FF 05			inc ind
+	   00000475 R
+ 000001F4  E2 D0			loop dodajbr1
+
+ 000001F6  33 C0			xor eax, eax ;reset vrednosti
+ 000001F8  33 DB			xor ebx, ebx
+ 000001FA  33 D2			xor edx, edx
+ 000001FC  B9 0000000A			mov ecx, arraySize
+					
+ 00000201			dodajbr2: ;dodatak brojeva u drugu tabelu
+ 00000201  66| 8B 1D			mov bx, jind
+	   00000473 R
+ 00000208  8A 93 00000379 R		mov dl, array[bx]
+ 0000020E  66| B8 000C			mov ax, 12
+ 00000212  8A DA			mov bl, dl
+ 00000214  66| F7 25			mul jind
+	   00000473 R
+ 0000021B  8A D3			mov dl, bl
+ 0000021D  66| 8B D8			mov bx, ax
+ 00000220  8A C2			mov al, dl
+ 00000222  88 93 000003FB R		mov crtice2[bx], dl;
+ 00000228  66| FF 05			inc jind
+	   00000473 R
+ 0000022F  E2 D0			loop dodajbr2
+
+ 00000231  BE 000003FB R		mov esi, OFFSET crtice2 ;podesavanje parametara za paralelnu stampu
+ 00000236  B9 00000078			mov ecx, crtice1Size
+ 0000023B  33 D2			xor edx, edx
+ 0000023D  33 C0			xor eax, eax
+ 0000023F  33 DB			xor ebx, ebx
+
+ 00000241  BF 00000383 R		mov edi, OFFSET crtice1
+
+ 00000246			istampaj: ;isti postupak kao u procedtu paralelnaStampa
+ 00000246  B0 20			mov al, ' '
+ 00000248  E8 00000000 E		call writechar
+ 0000024D  8A 04 3A			mov al, [edi+edx]
+ 00000250  E8 00000000 E		call writechar
+ 00000255  3C 09			cmp al, '	'
+ 00000257  74 0A			je predji
+ 00000259  42				inc edx
+ 0000025A  83 FA 78			cmp edx, 120
+ 0000025D  74 32			je kraj
+ 0000025F  E2 E5			loop istampaj
+
+ 00000261  EB 2E		    jmp kraj
+ 00000263			predji:
+ 00000263  42				inc edx
+ 00000264  EB 15			jmp istampaj2
+ 00000266			lupiendl:
+ 00000266  B0 0D			mov al, 0Dh
+ 00000268  E8 00000000 E		call writechar
+ 0000026D  B0 0A			mov al, 0Ah
+ 0000026F  E8 00000000 E		call WriteChar
+ 00000274  83 F9 0A			cmp ecx, 10
+ 00000277  74 18			je kraj
+ 00000279  EB CB			jmp istampaj
+
+ 0000027B			istampaj2:
+ 0000027B  B0 20			mov al, ' '
+ 0000027D  E8 00000000 E		call writechar
+ 00000282  8A 04 33			mov al, [esi+ebx]
+ 00000285  43				inc ebx
+ 00000286  3C 09			cmp al, '	'
+ 00000288  E8 00000000 E		call writechar
+ 0000028D  74 D7			je lupiendl
+ 0000028F  75 EA			jne istampaj2
+					
+
+ 00000291			kraj: ;kraj procedute stampa_blank
+ 00000291  C3				ret
+ 00000292			stampa_blank endp
+
+ 00000292			main PROC
+				; Unos imena fajlova igraca i provera ispravnosti fajlova
+
+				; Unos za prvog igraca
+					mWrite "Unesite ime fajla za 1. igraca: "
+ 0000048F		     1		.data		
+ 0000048F 55 6E 65 73 69     1		??0000 BYTE "Unesite ime fajla za 1. igraca: ",0	
+	   74 65 20 69 6D
+	   65 20 66 61 6A
+	   6C 61 20 7A 61
+	   20 31 2E 20 69
+	   67 72 61 63 61
+	   3A 20 00
+ 00000292		     1		.code
+ 00000292  52		     1		push	edx
+ 00000293  BA 0000048F R     1		mov	edx,OFFSET ??0000
+ 00000298  E8 00000000 E     1		call	WriteString
+ 0000029D  5A		     1		pop	edx
+ 0000029E  BA 000000D2 R		mov	edx,OFFSET filename
+ 000002A3  B9 00000050			mov	ecx,SIZEOF filename
+ 000002A8  E8 00000000 E		call	ReadString
+ 000002AD  EB 1B			jmp openFile
+
+ 000002AF			secondPlayerFile:
+				; Unos za drugog igraca
+					mWrite "Unesite ime fajla za 2. igraca: "
+ 000004B0		     1		.data		
+ 000004B0 55 6E 65 73 69     1		??0001 BYTE "Unesite ime fajla za 2. igraca: ",0	
+	   74 65 20 69 6D
+	   65 20 66 61 6A
+	   6C 61 20 7A 61
+	   20 32 2E 20 69
+	   67 72 61 63 61
+	   3A 20 00
+ 000002AF		     1		.code
+ 000002AF  52		     1		push	edx
+ 000002B0  BA 000004B0 R     1		mov	edx,OFFSET ??0001
+ 000002B5  E8 00000000 E     1		call	WriteString
+ 000002BA  5A		     1		pop	edx
+ 000002BB  BA 000000D2 R		mov	edx,OFFSET filename
+ 000002C0  B9 00000050			mov	ecx,SIZEOF filename
+ 000002C5  E8 00000000 E		call	ReadString
+
+ 000002CA			openFile:
+				; Otvaranje fajla
+ 000002CA  BA 000000D2 R		mov	edx,OFFSET filename
+ 000002CF  E8 00000000 E		call	OpenInputFile
+ 000002D4  A3 00000122 R		mov	fileHandle,eax
+
+				; Provera greski pti ucitavanju fajla - da li postoji fajl
+ 000002D9  83 F8 FF			cmp	eax,INVALID_HANDLE_VALUE		
+ 000002DC  75 11			jne	file_ok					
+					mWrite <"Fajl ne moze da se otvori!",0dh,0ah>
+ 000004D1		     1		.data		
+ 000004D1 46 61 6A 6C 20     1		??0002 BYTE "Fajl ne moze da se otvori!",0dh,0ah,0	
+	   6E 65 20 6D 6F
+	   7A 65 20 64 61
+	   20 73 65 20 6F
+	   74 76 6F 72 69
+	   21 0D 0A 00
+ 000002DE		     1		.code
+ 000002DE  52		     1		push	edx
+ 000002DF  BA 000004D1 R     1		mov	edx,OFFSET ??0002
+ 000002E4  E8 00000000 E     1		call	WriteString
+ 000002E9  5A		     1		pop	edx
+ 000002EA  E9 00000964			jmp	quit						
+ 000002EF			file_ok:
+
+				; Ucitavanje ulaznog fajla u buffer
+ 000002EF  BA 00000000 R		mov	edx,OFFSET buffer
+ 000002F4  B9 000000D1			mov	ecx,BUFFER_SIZE
+ 000002F9  E8 00000000 E		call	ReadFromFile
+ 000002FE  73 13			jnc	check_buffer_size			; greska pri citanju?
+					mWrite <"Greska prilikom citanja fajla!",0dh,0ah>
+ 000004EE		     1		.data		
+ 000004EE 47 72 65 73 6B     1		??0003 BYTE "Greska prilikom citanja fajla!",0dh,0ah,0	
+	   61 20 70 72 69
+	   6C 69 6B 6F 6D
+	   20 63 69 74 61
+	   6E 6A 61 20 66
+	   61 6A 6C 61 21
+	   0D 0A 00
+ 00000300		     1		.code
+ 00000300  52		     1		push	edx
+ 00000301  BA 000004EE R     1		mov	edx,OFFSET ??0003
+ 00000306  E8 00000000 E     1		call	WriteString
+ 0000030B  5A		     1		pop	edx
+ 0000030C  E8 00000000 E		call	WriteWindowsMsg
+ 00000311  EB 18			jmp	close_file
+					
+ 00000313			check_buffer_size:
+ 00000313  3D 000000D1			cmp	eax,BUFFER_SIZE			; da li je bafer dovoljno veliki?
+ 00000318  72 11			jb	close_file			
+					mWrite <"Fajl nije odgovarajuce duzine!",0dh,0ah>
+ 0000050F		     1		.data		
+ 0000050F 46 61 6A 6C 20     1		??0004 BYTE "Fajl nije odgovarajuce duzine!",0dh,0ah,0	
+	   6E 69 6A 65 20
+	   6F 64 67 6F 76
+	   61 72 61 6A 75
+	   63 65 20 64 75
+	   7A 69 6E 65 21
+	   0D 0A 00
+ 0000031A		     1		.code
+ 0000031A  52		     1		push	edx
+ 0000031B  BA 0000050F R     1		mov	edx,OFFSET ??0004
+ 00000320  E8 00000000 E     1		call	WriteString
+ 00000325  5A		     1		pop	edx
+ 00000326  E9 00000928			jmp	quit					
+					
+ 0000032B			close_file:
+ 0000032B  A1 00000122 R		mov	eax,fileHandle
+ 00000330  E8 00000000 E		call	CloseFile
+					
+				; Provera da li je ulazni fajl u redu
+ 00000335  BE 00000000 R		mov esi, offset buffer
+ 0000033A  BB 00000013			mov ebx, 19
+ 0000033F  B9 00000009			mov ecx,9
+ 00000344			inputLoop:
+ 00000344  8A 04 33			mov al, [esi + ebx]
+ 00000347  8A 64 33 01			mov ah, [esi + ebx + 1]
+ 0000034B  3C 0D			cmp al, 0dh
+ 0000034D  75 0C			jne inputFileError
+ 0000034F  80 FC 0A			cmp ah, 0ah
+ 00000352  75 07			jne inputFileError
+ 00000354  83 C3 15			add ebx,21
+ 00000357  E2 EB			loop inputLoop
+
+ 00000359  EB 11			jmp inputFileOk
+ 0000035B			inputFileError:
+					mWrite <"Greska u ulaznom fajlu!",0dh,0ah,0dh,0ah>
+ 00000530		     1		.data		
+ 00000530 47 72 65 73 6B     1		??0005 BYTE "Greska u ulaznom fajlu!",0dh,0ah,0dh,0ah,0	
+	   61 20 75 20 75
+	   6C 61 7A 6E 6F
+	   6D 20 66 61 6A
+	   6C 75 21 0D 0A
+	   0D 0A 00
+ 0000035B		     1		.code
+ 0000035B  52		     1		push	edx
+ 0000035C  BA 00000530 R     1		mov	edx,OFFSET ??0005
+ 00000361  E8 00000000 E     1		call	WriteString
+ 00000366  5A		     1		pop	edx
+ 00000367  E9 000008E7			jmp quit
+					
+ 0000036C			inputFileOk:
+ 0000036C  80 3D 00000206 R		cmp player, 0
+	   00
+ 00000373  75 07			jne secondPlayer
+
+ 00000375  BF 00000126 R		mov edi, offset array1
+ 0000037A  EB 05			jmp removal
+
+ 0000037C			secondPlayer:
+ 0000037C  BF 0000018A R		mov edi, offset array2
+
+				; Ulazni fajl je u redu
+ 00000381			removal:
+				; Otklanjanje blanko znaka iz ulaznog bafera
+ 00000381  BE 00000000 R		mov esi, offset buffer
+ 00000386			startOfRemoval:
+ 00000386  8A 06			mov al, [esi]
+ 00000388  46				inc esi
+ 00000389  3C 00			cmp al, 0
+ 0000038B  74 11			je endOfRemoval
+ 0000038D  3C 20			cmp al, 32
+ 0000038F  74 F5			je startOfRemoval
+ 00000391  3C 0D			cmp al, 0dh
+ 00000393  74 F1			je startOfRemoval
+ 00000395  3C 0A			cmp al, 0ah
+ 00000397  74 ED			je startOfRemoval
+ 00000399  88 07			mov [edi],al
+ 0000039B  47				inc edi
+ 0000039C  EB E8			jmp startOfRemoval
+
+ 0000039E			endOfRemoval:
+ 0000039E  80 3D 00000206 R		cmp player,0
+	   00
+ 000003A5  75 07			jne secondPlayerRemoval
+ 000003A7  B8 00000064			mov eax, lengthof array1
+ 000003AC  EB 05			jmp continueRemoval
+
+ 000003AE			secondPlayerRemoval:
+ 000003AE  B8 00000064			mov eax, lengthof array2
+
+ 000003B3			continueRemoval:
+ 000003B3  83 F8 64			cmp eax, VALID_SIZE
+ 000003B6  75 A3			jne inputFileError
+
+ 000003B8  80 3D 00000206 R		cmp player, 0
+	   00
+ 000003BF  75 07			jne secondPlayerIC
+
+ 000003C1  BE 00000126 R		mov esi, offset array1
+ 000003C6  EB 05			jmp illegalCharacters
+
+ 000003C8			secondPlayerIC:
+ 000003C8  BE 0000018A R		mov esi, offset array2
+
+				; Provera postovanja pravila
+				; Provera da li su korisceni samo dozvoljeni znaci (-0123456789)
+ 000003CD			illegalCharacters:
+ 000003CD  C6 05 000000D1 R		mov cnt, VALID_SIZE-1
+	   63
+ 000003D4			searchLoop:
+ 000003D4  BF 000001EE R		mov edi, offset allowedCharacters
+ 000003D9  B9 0000000B			mov ecx, 11
+ 000003DE  8B 06			mov eax, [esi]
+ 000003E0  F2/ AE			repne scasb
+ 000003E2  75 0B			jne invalidCharacterFound
+ 000003E4  46				inc esi
+ 000003E5  FE 0D 000000D1 R	 	dec cnt
+ 000003EB  74 13			je continue
+ 000003ED  EB E5			jmp searchLoop
+
+ 000003EF			invalidCharacterFound:
+					mWrite <"Nedozvoljeni znaci u ulaznom fajlu!",0dh,0ah,0dh,0ah>
+ 0000054C		     1		.data		
+ 0000054C 4E 65 64 6F 7A     1		??0006 BYTE "Nedozvoljeni znaci u ulaznom fajlu!",0dh,0ah,0dh,0ah,0	
+	   76 6F 6C 6A 65
+	   6E 69 20 7A 6E
+	   61 63 69 20 75
+	   20 75 6C 61 7A
+	   6E 6F 6D 20 66
+	   61 6A 6C 75 21
+	   0D 0A 0D 0A 00
+ 000003EF		     1		.code
+ 000003EF  52		     1		push	edx
+ 000003F0  BA 0000054C R     1		mov	edx,OFFSET ??0006
+ 000003F5  E8 00000000 E     1		call	WriteString
+ 000003FA  5A		     1		pop	edx
+ 000003FB  E9 00000853			jmp quit
+
+ 00000400			continue:
+ 00000400  80 3D 00000206 R		cmp player, 0
+	   00
+ 00000407  75 07			jne secondPlayerPC
+
+ 00000409  BE 00000126 R		mov esi, offset array1
+ 0000040E  EB 05			jmp placementCheck
+
+ 00000410			secondPlayerPC:
+ 00000410  BE 0000018A R		mov esi, offset array2
+
+ 00000415			placementCheck:
+ 00000415  C6 05 00000205 R		mov numTwo, 0
+	   00
+ 0000041C  C6 05 00000204 R		mov numThree, 0
+	   00
+ 00000423  C6 05 00000203 R		mov numFour, 0
+	   00
+ 0000042A  C6 05 00000202 R		mov numFive, 0
+	   00
+
+				; Provera rasporeda brodica
+				; Proverava da li se brodici dodiruju, ako se dodiruju - krsenje pravila!
+ 00000431  B9 0000000A			mov ecx, 10
+ 00000436  C7 05 000001F9 R		mov i,0
+	   00000000
+ 00000440  C7 05 000001FD R		mov j,0
+	   00000000
+ 0000044A			cheatingLoop:
+ 0000044A  39 0D 000001F9 R		cmp i, ecx ; ako je i = 10 uvecava se j
+ 00000450  0F 84 00000104		je incJ
+ 00000456  8B 1D 000001F9 R		mov ebx, i
+ 0000045C  6B 05 000001FD R		imul eax, j, 10
+	   0A
+ 00000463  03 D8			add ebx, eax
+ 00000465  8A 04 33			mov al, [esi+ebx]
+ 00000468  B2 2D			mov dl, 45 ; dl = -
+ 0000046A  3A C2			cmp al, dl
+ 0000046C  0F 84 000000DD		je hyphen
+ 00000472  83 3D 000001FD R		cmp j, 0
+	   00
+ 00000479  0F 84 000000FD		je topRow
+ 0000047F  83 3D 000001FD R		cmp j, 9 
+	   09
+ 00000486  0F 84 000002B7		je bottomRow
+ 0000048C  83 3D 000001F9 R		cmp i, 0
+	   00
+ 00000493  0F 84 000001D8		je leftColumn
+ 00000499  83 3D 000001F9 R		cmp i, 9
+	   09
+ 000004A0  0F 84 00000234		je rightColumn
+
+ 000004A6  3A 44 33 01			cmp al, [esi+ebx+1]
+ 000004AA  74 1C			je checkLeft
+ 000004AC  3A 54 33 01			cmp dl, [esi+ebx+1]
+ 000004B0  0F 85 00000350		jne cheatingFound
+ 000004B6  3A 44 33 FF			cmp al, [esi+ebx-1]
+ 000004BA  74 4C			je horizontalShip
+ 000004BC  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 000004C0  0F 85 00000340		jne cheatingFound
+ 000004C6  EB 12			jmp verticalShip
+
+ 000004C8			checkLeft:
+ 000004C8  3A 44 33 FF			cmp al, [esi+ebx-1]
+ 000004CC  74 3A			je horizontalShip
+ 000004CE  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 000004D2  0F 85 0000032E		jne cheatingFound
+ 000004D8  EB 2E			jmp horizontalShip
+
+ 000004DA			verticalShip:
+ 000004DA  3A 44 33 F6			cmp al, [esi+ebx-10]
+ 000004DE  74 16			je checkBottom
+ 000004E0  3A 54 33 F6			cmp dl, [esi+ebx-10]
+ 000004E4  0F 85 0000031C		jne cheatingFound
+ 000004EA  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 000004EE  0F 85 00000312		jne cheatingFound
+ 000004F4  EB 26			jmp diagonal
+
+ 000004F6			checkBottom:
+ 000004F6  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 000004FA  74 20			je diagonal
+ 000004FC  3A 54 33 0A			cmp dl, [esi+ebx+10]
+ 00000500  0F 85 00000300		jne cheatingFound
+ 00000506  EB 14			jmp diagonal
+
+ 00000508			horizontalShip:
+ 00000508  3A 54 33 0A			cmp dl, [esi+ebx+10]
+ 0000050C  0F 85 000002F4		jne cheatingFound
+ 00000512  3A 54 33 F6			cmp dl, [esi+ebx-10]
+ 00000516  0F 85 000002EA		jne cheatingFound
+ 0000051C			diagonal:
+ 0000051C  3A 54 33 F7			cmp dl, [esi+ebx-9]
+ 00000520  0F 85 000002E0		jne cheatingFound
+ 00000526  3A 54 33 F5			cmp dl, [esi+ebx-11]
+ 0000052A  0F 85 000002D6		jne cheatingFound
+ 00000530  3A 54 33 09			cmp dl, [esi+ebx+9]
+ 00000534  0F 85 000002CC		jne cheatingFound
+ 0000053A  3A 54 33 0B			cmp dl, [esi+ebx+11]
+ 0000053E  0F 85 000002C2		jne cheatingFound
+ 00000544  FF 05 000001F9 R		inc i
+ 0000054A  E9 FFFFFEFB			jmp cheatingLoop
+
+ 0000054F			hyphen:
+ 0000054F  FF 05 000001F9 R		inc i
+ 00000555  E9 FFFFFEF0			jmp cheatingLoop
+
+ 0000055A			incJ:
+ 0000055A  83 3D 000001FD R		cmp j,9
+	   09
+ 00000561  0F 84 000002B0		je notCheating
+ 00000567  C7 05 000001F9 R		mov i,0
+	   00000000
+ 00000571  FF 05 000001FD R		inc j
+ 00000577  E9 FFFFFECE			jmp cheatingLoop
+
+ 0000057C			topRow:
+ 0000057C  83 3D 000001F9 R		cmp i,0
+	   00
+ 00000583  74 76			je topLeftCorner 
+ 00000585  83 3D 000001F9 R		cmp i,9
+	   09
+ 0000058C  0F 84 000000A4		je topRightCorner
+ 00000592  3A 44 33 01			cmp al, [esi+ebx+1]
+ 00000596  74 1C			je checkLeftTR
+ 00000598  3A 54 33 01			cmp dl, [esi+ebx+1]
+ 0000059C  0F 85 00000264		jne cheatingFound
+ 000005A2  3A 44 33 FF			cmp al, [esi+ebx-1]
+ 000005A6  74 2A			je horizontalShipTR
+ 000005A8  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 000005AC  0F 85 00000254		jne cheatingFound
+ 000005B2  EB 12			jmp verticalShipTR
+
+ 000005B4			checkLeftTR:
+ 000005B4  3A 44 33 FF			cmp al, [esi+ebx-1]
+ 000005B8  74 18			je horizontalShipTR
+ 000005BA  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 000005BE  0F 85 00000242		jne cheatingFound
+ 000005C4  EB 0C			jmp horizontalShipTR
+
+ 000005C6			verticalShipTR:
+ 000005C6  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 000005CA  74 10			je diagonalTR
+ 000005CC  0F 85 00000234		jne cheatingFound
+
+ 000005D2			horizontalShipTR:
+ 000005D2  3A 54 33 0A			cmp dl, [esi+ebx+10]
+ 000005D6  0F 85 0000022A		jne cheatingFound
+ 000005DC			diagonalTR:
+ 000005DC  3A 54 33 09			cmp dl, [esi+ebx+9]
+ 000005E0  0F 85 00000220		jne cheatingFound
+ 000005E6  3A 54 33 0B			cmp dl, [esi+ebx+11]
+ 000005EA  0F 85 00000216		jne cheatingFound
+ 000005F0  FF 05 000001F9 R		inc i
+ 000005F6  E9 FFFFFE4F			jmp cheatingLoop
+
+ 000005FB			topLeftCorner: ;TLC
+ 000005FB  3A 44 33 01			cmp al, [esi+ebx+1] 
+ 000005FF  75 0C			jne verticalShipTLC 
+ 00000601			horizontalShipTLC: 
+ 00000601  3A 54 33 0A			cmp dl, [esi+ebx+10] ;sa hyphen poredimo 
+ 00000605  0F 85 000001FB		jne cheatingFound
+ 0000060B  EB 14			jmp diagonalTLC 
+ 0000060D			verticalShipTLC:
+ 0000060D  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 00000611  0F 85 000001EF		jne cheatingFound
+ 00000617  3A 54 33 01			cmp dl, [esi+ebx+1]
+ 0000061B  0F 85 000001E5		jne cheatingFound
+ 00000621			diagonalTLC:
+ 00000621  3A 54 33 0B			cmp dl, [esi+ebx+11]
+ 00000625  0F 85 000001DB		jne cheatingFound
+ 0000062B  FF 05 000001F9 R		inc i
+ 00000631  E9 FFFFFE14			jmp cheatingLoop
+
+ 00000636			topRightCorner: ;TRC
+ 00000636  3A 44 33 FF			cmp al, [esi+ebx-1] 
+ 0000063A  75 0C			jne verticalShipTRC 
+ 0000063C			horizontalShipTRC: 
+ 0000063C  3A 54 33 0A			cmp dl, [esi+ebx+10] ;sa hyphen poredimo 
+ 00000640  0F 85 000001C0		jne cheatingFound
+ 00000646  EB 14			jmp diagonalTRC 
+ 00000648			verticalShipTRC:
+ 00000648  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 0000064C  0F 85 000001B4		jne cheatingFound
+ 00000652  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 00000656  0F 85 000001AA		jne cheatingFound
+ 0000065C			diagonalTRC:
+ 0000065C  3A 54 33 09			cmp dl, [esi+ebx+9]
+ 00000660  0F 85 000001A0		jne cheatingFound
+ 00000666  FF 05 000001F9 R		inc i
+ 0000066C  E9 FFFFFDD9			jmp cheatingLoop
+
+ 00000671			leftColumn:
+ 00000671  3A 44 33 F6			cmp al, [esi+ebx-10]
+ 00000675  74 1C			je checkDownLC
+ 00000677  3A 54 33 F6			cmp dl, [esi+ebx-10]
+ 0000067B  0F 85 00000185		jne cheatingFound
+ 00000681  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 00000685  74 2A			je verticalShipLC
+ 00000687  3A 54 33 0A			cmp dl, [esi+ebx+10]
+ 0000068B  0F 85 00000175		jne cheatingFound
+ 00000691  EB 12			jmp horizontalShipLC
+
+ 00000693			checkDownLC:
+ 00000693  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 00000697  74 18			je verticalShipLC
+ 00000699  3A 54 33 0A			cmp dl, [esi+ebx+10]
+ 0000069D  0F 85 00000163		jne cheatingFound
+ 000006A3  EB 0C			jmp verticalShipLC
+
+ 000006A5			horizontalShipLC:
+ 000006A5  3A 44 33 01			cmp al, [esi+ebx+1]
+ 000006A9  74 10			je diagonalLC
+ 000006AB  0F 85 00000155		jne cheatingFound
+
+ 000006B1			verticalShipLC:
+ 000006B1  3A 54 33 01			cmp dl, [esi+ebx+1]
+ 000006B5  0F 85 0000014B		jne cheatingFound
+ 000006BB			diagonalLC:
+ 000006BB  3A 54 33 F7			cmp dl, [esi+ebx-9]
+ 000006BF  0F 85 00000141		jne cheatingFound
+ 000006C5  3A 54 33 0B			cmp dl, [esi+ebx+11]
+ 000006C9  0F 85 00000137		jne cheatingFound
+ 000006CF  FF 05 000001F9 R		inc i
+ 000006D5  E9 FFFFFD70			jmp cheatingLoop
+
+ 000006DA			rightColumn:
+ 000006DA  3A 44 33 F6			cmp al, [esi+ebx-10]
+ 000006DE  74 1C			je checkDownRC
+ 000006E0  3A 54 33 F6			cmp dl, [esi+ebx-10]
+ 000006E4  0F 85 0000011C		jne cheatingFound
+ 000006EA  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 000006EE  74 2A			je verticalShipRC
+ 000006F0  3A 54 33 0A			cmp dl, [esi+ebx+10]
+ 000006F4  0F 85 0000010C		jne cheatingFound
+ 000006FA  EB 12			jmp horizontalShipRC
+
+ 000006FC			checkDownRC:
+ 000006FC  3A 44 33 0A			cmp al, [esi+ebx+10]
+ 00000700  74 18			je verticalShipRC
+ 00000702  3A 54 33 0A			cmp dl, [esi+ebx+10]
+ 00000706  0F 85 000000FA		jne cheatingFound
+ 0000070C  EB 0C			jmp verticalShipRC
+
+ 0000070E			horizontalShipRC:
+ 0000070E  3A 44 33 FF			cmp al, [esi+ebx-1]
+ 00000712  74 10			je diagonalRC
+ 00000714  0F 85 000000EC		jne cheatingFound
+
+ 0000071A			verticalShipRC:
+ 0000071A  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 0000071E  0F 85 000000E2		jne cheatingFound
+ 00000724			diagonalRC:
+ 00000724  3A 54 33 09			cmp dl, [esi+ebx+9]
+ 00000728  0F 85 000000D8		jne cheatingFound
+ 0000072E  3A 54 33 F5			cmp dl, [esi+ebx-11]
+ 00000732  0F 85 000000CE		jne cheatingFound
+ 00000738  FF 05 000001F9 R		inc i
+ 0000073E  E9 FFFFFD07			jmp cheatingLoop
+
+ 00000743			bottomRow:
+ 00000743  83 3D 000001F9 R		cmp i,0
+	   00
+ 0000074A  74 62			je bottomLeftCorner 
+ 0000074C  83 3D 000001F9 R		cmp i,9
+	   09
+ 00000753  0F 84 00000080		je bottomRightCorner
+ 00000759  3A 44 33 01			cmp al, [esi+ebx+1]
+ 0000075D  74 1C			je checkLeftBR
+ 0000075F  3A 54 33 01			cmp dl, [esi+ebx+1]
+ 00000763  0F 85 0000009D		jne cheatingFound
+ 00000769  3A 44 33 FF			cmp al, [esi+ebx-1]
+ 0000076D  74 22			je horizontalShipBR
+ 0000076F  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 00000773  0F 85 0000008D		jne cheatingFound
+ 00000779  EB 0E			jmp verticalShipBR
+
+ 0000077B			checkLeftBR:
+ 0000077B  3A 44 33 FF			cmp al, [esi+ebx-1]
+ 0000077F  74 10			je horizontalShipBR
+ 00000781  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 00000785  75 7F			jne cheatingFound
+ 00000787  EB 08			jmp horizontalShipBR
+
+ 00000789			verticalShipBR:
+ 00000789  3A 44 33 F6			cmp al, [esi+ebx-10]
+ 0000078D  74 08			je diagonalBR
+ 0000078F  75 75			jne cheatingFound
+
+ 00000791			horizontalShipBR:
+ 00000791  3A 54 33 F6			cmp dl, [esi+ebx-10]
+ 00000795  75 6F			jne cheatingFound
+ 00000797			diagonalBR:
+ 00000797  3A 54 33 F7			cmp dl, [esi+ebx-9]
+ 0000079B  75 69			jne cheatingFound
+ 0000079D  3A 54 33 F5			cmp dl, [esi+ebx-11]
+ 000007A1  75 63			jne cheatingFound
+ 000007A3  FF 05 000001F9 R		inc i
+ 000007A9  E9 FFFFFC9C			jmp cheatingLoop
+
+ 000007AE			bottomLeftCorner: ;BLC
+ 000007AE  3A 44 33 01			cmp al, [esi+ebx+1] 
+ 000007B2  75 08			jne verticalShipBLC 
+ 000007B4			horizontalShipBLC: 
+ 000007B4  3A 54 33 F6			cmp dl, [esi+ebx-10] ;sa hyphen poredimo 
+ 000007B8  75 4C			jne cheatingFound
+ 000007BA  EB 0C			jmp diagonalBLC 
+ 000007BC			verticalShipBLC:
+ 000007BC  3A 44 33 F6			cmp al, [esi+ebx-10]
+ 000007C0  75 44			jne cheatingFound
+ 000007C2  3A 54 33 01			cmp dl, [esi+ebx+1]
+ 000007C6  75 3E			jne cheatingFound
+ 000007C8			diagonalBLC:
+ 000007C8  3A 54 33 F7			cmp dl, [esi+ebx-9]
+ 000007CC  75 38			jne cheatingFound
+ 000007CE  FF 05 000001F9 R		inc i
+ 000007D4  E9 FFFFFC71			jmp cheatingLoop
+
+ 000007D9			bottomRightCorner: ;BRC
+ 000007D9  3A 44 33 FF			cmp al, [esi+ebx-1] 
+ 000007DD  75 08			jne verticalShipBRC
+ 000007DF			horizontalShipBRC: 
+ 000007DF  3A 54 33 F6			cmp dl, [esi+ebx-10] ;sa hyphen poredimo 
+ 000007E3  75 21			jne cheatingFound
+ 000007E5  EB 0C			jmp diagonalBRC 
+ 000007E7			verticalShipBRC:
+ 000007E7  3A 44 33 F6			cmp al, [esi+ebx-10]
+ 000007EB  75 19			jne cheatingFound
+ 000007ED  3A 54 33 FF			cmp dl, [esi+ebx-1]
+ 000007F1  75 13			jne cheatingFound
+ 000007F3			diagonalBRC:
+ 000007F3  3A 54 33 F5			cmp dl, [esi+ebx-11]
+ 000007F7  75 0D			jne cheatingFound
+ 000007F9  FF 05 000001F9 R		inc i
+ 000007FF  E9 FFFFFC46			jmp cheatingLoop
+
+ 00000804  EB 11		jmp notCheating
+
+				; Pronadjeno krsenje pravila
+ 00000806			cheatingFound:
+					mWrite <"Varas, varalice!",0dh,0ah,0dh,0ah>
+ 00000574		     1		.data		
+ 00000574 56 61 72 61 73     1		??0007 BYTE "Varas, varalice!",0dh,0ah,0dh,0ah,0	
+	   2C 20 76 61 72
+	   61 6C 69 63 65
+	   21 0D 0A 0D 0A
+	   00
+ 00000806		     1		.code
+ 00000806  52		     1		push	edx
+ 00000807  BA 00000574 R     1		mov	edx,OFFSET ??0007
+ 0000080C  E8 00000000 E     1		call	WriteString
+ 00000811  5A		     1		pop	edx
+ 00000812  E9 0000043C			jmp quit
+
+ 00000817			notCheating:
+
+ 00000817  80 3D 00000206 R		cmp player, 0
+	   00
+ 0000081E  75 07			jne secondPlayerNum
+
+ 00000820  BF 00000126 R		mov edi, offset array1
+ 00000825  EB 05			jmp numCheck
+
+ 00000827			secondPlayerNum:
+ 00000827  BF 0000018A R		mov edi, offset array2
+
+ 0000082C			numCheck:
+				; Provera broja brodova
+				; Proverava da li su koriscene sve cifre od 0-9, ako jesu onda proverava
+				; da li odgovarajuci broj brodova. 
+ 0000082C  BE 000001EE R		mov esi, offset allowedCharacters
+ 00000831  BB 00000001			mov ebx, 1 ; polazimo od 1
+ 00000836			countingLoop:
+ 00000836  83 FB 0B			cmp ebx, 11
+ 00000839  0F 84 00000093		je finishedCounting
+ 0000083F  B9 00000000			mov ecx,0
+ 00000844  C6 05 000000D1 R		mov cnt,0
+	   00
+ 0000084B  8A 04 33			mov al, [esi+ebx]
+ 0000084E  C6 05 00000207 R		mov distance, -100
+	   9C
+ 00000855			arrayIteration:
+ 00000855  83 F9 64			cmp ecx, VALID_SIZE ; uslov izlaska iz petlje
+ 00000858  74 28			je endOfString 
+ 0000085A  8A 24 39			mov ah, [edi+ecx]
+ 0000085D  41				inc ecx
+ 0000085E  FE 05 00000207 R		inc distance
+ 00000864  3A C4			cmp al,ah
+ 00000866  74 02			je incCnt
+ 00000868  EB EB			jmp arrayIteration
+
+ 0000086A			incCnt:
+ 0000086A  FE 05 000000D1 R		inc cnt
+ 00000870  80 3D 00000207 R		cmp distance, 10
+	   0A
+ 00000877  7F 7F			jg wrongNumber
+ 00000879  C6 05 00000207 R		mov distance, 0
+	   00
+ 00000880  EB D3			jmp arrayIteration
+
+ 00000882			endOfString:
+ 00000882  43				inc ebx
+ 00000883  80 3D 000000D1 R		cmp cnt,2
+	   02
+ 0000088A  74 1D			je incTwo
+ 0000088C  80 3D 000000D1 R		cmp cnt,3
+	   03
+ 00000893  74 1C			je incThree
+ 00000895  80 3D 000000D1 R		cmp cnt,4
+	   04
+ 0000089C  74 1E			je incFour
+ 0000089E  80 3D 000000D1 R		cmp cnt,5
+	   05
+ 000008A5  74 20			je incFive
+ 000008A7  EB 4F			jmp wrongNumber
+
+ 000008A9			incTwo:
+ 000008A9  FE 05 00000205 R		inc numTwo
+ 000008AF  EB 85			jmp countingLoop
+
+ 000008B1			incThree:
+ 000008B1  FE 05 00000204 R		inc numThree
+ 000008B7  E9 FFFFFF7A			jmp countingLoop
+
+ 000008BC			incFour:
+ 000008BC  FE 05 00000203 R		inc numFour
+ 000008C2  E9 FFFFFF6F			jmp countingLoop
+
+ 000008C7			incFive:
+ 000008C7  FE 05 00000202 R		inc numFive
+ 000008CD  E9 FFFFFF64			jmp countingLoop
+
+ 000008D2			finishedCounting:
+ 000008D2  80 3D 00000202 R		cmp numFive, 1
+	   01
+ 000008D9  75 1D			jne wrongNumber
+ 000008DB  80 3D 00000203 R		cmp numFour, 2
+	   02
+ 000008E2  75 14			jne wrongNumber
+ 000008E4  80 3D 00000204 R		cmp numThree, 3
+	   03
+ 000008EB  75 0B			jne wrongNumber
+ 000008ED  80 3D 00000205 R		cmp numTwo,4
+	   04
+ 000008F4  75 02			jne wrongNumber
+ 000008F6  EB 11			jmp allIsWell
+
+ 000008F8			wrongNumber:
+					mWrite <"Niste uneli odgovarajuce brodice!",0dh,0ah,0dh,0ah>
+ 00000589		     1		.data		
+ 00000589 4E 69 73 74 65     1		??0008 BYTE "Niste uneli odgovarajuce brodice!",0dh,0ah,0dh,0ah,0	
+	   20 75 6E 65 6C
+	   69 20 6F 64 67
+	   6F 76 61 72 61
+	   6A 75 63 65 20
+	   62 72 6F 64 69
+	   63 65 21 0D 0A
+	   0D 0A 00
+ 000008F8		     1		.code
+ 000008F8  52		     1		push	edx
+ 000008F9  BA 00000589 R     1		mov	edx,OFFSET ??0008
+ 000008FE  E8 00000000 E     1		call	WriteString
+ 00000903  5A		     1		pop	edx
+ 00000904  E9 0000034A			jmp quit
+
+ 00000909			allIsWell:
+ 00000909  FE 05 00000206 R		inc player
+ 0000090F  80 3D 00000206 R		cmp player,1
+	   01
+ 00000916  0F 84 FFFFF993		je secondPlayerFile
+
+ 0000091C  C7 05 000001F9 R		mov i, 10
+	   0000000A
+ 00000926  33 C0			xor eax, eax
+					
+ 00000928  E8 FFFFF846			call stampa_blank ;ispis pocetnog ekrana
+ 0000092D			igrac1: 
+ 0000092D  BA 00000208 R	mov edx, OFFSET message6 ;dodatak labele da bi se znalo koji je igrac na potezu
+ 00000932  E8 00000000 E	call WriteString
+ 00000937  E8 00000000 E	call Crlf
+ 0000093C			unesi1:
+ 0000093C  BA 00000479 R		mov edx, OFFSET unos ; ucitavanje koordinate na koju sumnjamo da krije brodic
+ 00000941  B9 00000004			mov ecx, MAX
+ 00000946  E8 00000000 E		call ReadString
+ 0000094B			ucitaj1:
+ 0000094B  33 C9			xor ecx, ecx
+ 0000094D  83 F8 02			cmp eax, 2 ; poredjenje duzine upisanog podatka sa 2,
+							   ; kako bi znali da li je upisana odgovarajuca vrednost
+ 00000950  0F 85 000000D2		jne greska1 ; ako nije prijavljuje se greska
+ 00000956  8A 22			mov ah, [edx] ;pravljenje pomeraja od unetog slova i broja
+ 00000958  42				inc edx
+ 00000959  80 FC 41			cmp ah, 'A' ;poredjenje da li je slovo u odgovarajucem opsegu, 
+								;ako nije prijavi gresku i zatrazi ponovni upis
+ 0000095C  0F 8C 000000C6		jl greska1
+ 00000962  80 FC 4A			cmp ah, 'J'
+ 00000965  0F 8F 000000BD		jg greska1
+ 0000096B  80 EC 40			sub ah, 64 ; pravljenje decimalne vrednosti od slova(preko ASCII koda)
+ 0000096E  8A 02			mov al, [edx] ;ucitavanje broja
+ 00000970  3C 30			cmp al, '0' ;provera da li je broj u odgovarajucem opsegu,
+								; ako nije prijavi gresku
+ 00000972  0F 8C 000000B0		jl greska1
+ 00000978  3C 39			cmp al, '9'
+ 0000097A  0F 8F 000000A8		jg greska1
+ 00000980  2C 30			sub al, 48 ; napravi decimalnu vrednost od karaktera koji predstavlja broj
+ 00000982  A2 0000047F R		mov broj, al
+ 00000987  88 25 00000480 R		mov slovo, ah
+ 0000098D  A0 0000047F R		mov al, broj
+ 00000992  F7 25 000001F9 R		mul i ;mnozenje sa 10 kako bi se dobio odgovarajuci linearni pomeraj
+ 00000998  02 0D 00000480 R		add cl, slovo
+ 0000099E  B4 00			mov ah, 0
+ 000009A0  66| 03 C1			add ax, cx ;krajnji pomeraj
+					
+					
+ 000009A3  33 DB			xor ebx, ebx ;ciscenje registara od potencijalnih zaostalih vrednosti
+ 000009A5  33 D2			xor edx, edx
+ 000009A7  66| 8B D8			mov bx, ax
+ 000009AA  66| 48			dec ax ; odgovarajuci pomeraj mora da se umanji za 1 zbog nacina indeksiranja
+ 000009AC  66| 8B D8			mov bx, ax
+ 000009AF  80 BB 0000018A R		cmp array2[ebx], '-' ;kako bismo znali da li se desio pogodak
+	   2D
+ 000009B6  0F 84 00000091		je promasaj1 ;ako nije skoci u promasaj
+
+					;prebaci na pomeraj za stampu
+ 000009BC  33 C9			xor ecx, ecx
+ 000009BE  33 C0			xor eax, eax
+ 000009C0  A0 0000047F R		mov al, broj
+ 000009C5  F6 25 0000047E R		mul idvan ;pomeraj za stampu - izlazna tabela ima 12 karaktera po redu, ne 10
+ 000009CB  02 0D 00000480 R		add cl, slovo ;otud je idvan=12 
+ 000009D1  66| 03 C1			add ax, cx
+ 000009D4  33 DB			xor ebx, ebx
+ 000009D6  66| 8B D8			mov bx, ax
+
+ 000009D9  80 BB 000003FB R		cmp crtice2[ebx], '-'
+	   2D
+ 000009E0  75 5A			jne vecIgrano1 ; ako smo vec odigrali neki potez da se ne ponavljamo
+
+ 000009E2  C6 05 0000048B R		mov igra1, 0 ; setuj promenljivu igra1 na 0
+	   00
+								 ; igra prvi igrac ponovo jer se desio pogodak
+ 000009E9  33 C0			xor eax, eax
+ 000009EB  80 2D 00000482 R		sub brojac2, 1 ; umanji borjac brodica2 jer se desio pogodak
+	   01
+ 000009F2  80 3D 00000482 R		cmp brojac2, 0 
+	   00
+ 000009F9  0F 84 0000021E		je kraj1 ;uporedi brojac sa nulom da znamo da li je kraj igre i skoci u kraj1
+ 000009FF  33 C0			xor eax, eax
+ 00000A01  C6 05 0000048D R		mov prom1, 0 ; setuj flegove za promasaj na 0 
+	   00
+ 00000A08  C6 05 0000048E R		mov prom2, 0
+	   00
+ 00000A0F  E8 FFFFF5EC			call paralelnaStampa ;pozovi ispis tabela
+ 00000A14  BA 00000294 R		mov edx, OFFSET prompt ;prikazi poruku odobravanja
+ 00000A19  E8 00000000 E		call WriteString
+ 00000A1E  E8 00000000 E		call Crlf
+ 00000A23  E9 FFFFFF05			jmp igrac1 ;vrati se na pocetak petlje jer opet igra prvi igrac
+
+ 00000A28			greska1:
+ 00000A28  BA 000002B5 R		mov edx, OFFSET message2 ;izbaci poruku da je doslo do pogresnog unosa
+ 00000A2D  E8 00000000 E		call WriteString
+ 00000A32  E8 00000000 E		call Crlf
+ 00000A37  E9 FFFFFF00			jmp unesi1 ;vrati se na ponovni unos
+ 00000A3C			vecIgrano1:
+					mWrite <"Vec ste pokusali ovu koordinatu, unesite neku drugu", 0Dh, 0Ah>
+ 000005AF		     1		.data		
+ 000005AF 56 65 63 20 73     1		??0009 BYTE "Vec ste pokusali ovu koordinatu, unesite neku drugu", 0Dh, 0Ah,0	
+	   74 65 20 70 6F
+	   6B 75 73 61 6C
+	   69 20 6F 76 75
+	   20 6B 6F 6F 72
+	   64 69 6E 61 74
+	   75 2C 20 75 6E
+	   65 73 69 74 65
+	   20 6E 65 6B 75
+	   20 64 72 75 67
+	   75 0D 0A 00
+ 00000A3C		     1		.code
+ 00000A3C  52		     1		push	edx
+ 00000A3D  BA 000005AF R     1		mov	edx,OFFSET ??0009
+ 00000A42  E8 00000000 E     1		call	WriteString
+ 00000A47  5A		     1		pop	edx
+ 00000A48  E9 FFFFFEE0			jmp igrac1
+
+						
+ 00000A4D			promasaj1:
+				;prebaci na pomeraj za stampu
+ 00000A4D  33 C9			xor ecx, ecx
+ 00000A4F  33 C0			xor eax, eax
+ 00000A51  A0 0000047F R		mov al, broj
+ 00000A56  F6 25 0000047E R		mul idvan
+ 00000A5C  02 0D 00000480 R		add cl, slovo
+ 00000A62  66| 03 C1			add ax, cx
+ 00000A65  33 DB			xor ebx, ebx
+ 00000A67  66| 8B D8			mov bx, ax
+ 00000A6A  80 BB 000003FB R		cmp crtice2[ebx], '-'
+	   2D
+ 00000A71  75 C9			jne vecIgrano1 ;ako smo odigrali neki potez da se ne ponavljamo
+ 00000A73  C6 05 0000048E R		mov prom2, 0 ;setuj flegove za promasaj 1. igraca i omoguci igracu 2 da igra 
+	   00
+ 00000A7A  C6 05 0000048C R		mov igra2, 0 ; komandom mov igra2, 0 i mov igra1, 0
+	   00
+ 00000A81  C6 05 0000048D R		mov prom1, 1
+	   01
+ 00000A88  C6 05 0000048B R		mov igra1, 1
+	   01
+ 00000A8F  E8 FFFFF56C			call paralelnaStampa ; pozovi stampu tabele
+ 00000A94  BA 0000026B R		mov edx, OFFSET message ;prikazi poruku neodobravanja
+ 00000A99  E8 00000000 E		call WriteString
+ 00000A9E  E8 00000000 E		call Crlf ;procedura iz IRVIN biblioteke za dodatak novog reda
+ 00000AA3  EB 00			jmp igrac2 ;predji na igraca 2
+					
+
+						
+ 00000AA5			igrac2:
+ 00000AA5  BA 00000211 R	mov edx, OFFSET message7 ;prikazi poruku da igra drugi igrac
+ 00000AAA  E8 00000000 E	call WriteString
+ 00000AAF  E8 00000000 E	call Crlf
+ 00000AB4			unesi2: ;ista provera kao za igraca 1
+ 00000AB4  BA 00000479 R		mov edx, OFFSET unos
+ 00000AB9  B9 00000004			mov ecx, MAX
+ 00000ABE  E8 00000000 E		call ReadString ;unos zeljene koordinate
+ 00000AC3			ucitaj2:
+ 00000AC3  83 F8 02			cmp eax, 2 ;provera da li je unet string odgovarajuce duzine
+ 00000AC6  0F 85 000000D1		jne greska2 ; ako nije skoci u gresku 
+ 00000ACC  33 C9			xor ecx, ecx
+ 00000ACE  8A 22			mov ah, [edx] ;dohvatanje prvog karaktera u nizu
+ 00000AD0  42				inc edx
+ 00000AD1  80 FC 41			cmp ah, 'A' ; provera da li je prvi karakter u dozvoljenom opsegu
+ 00000AD4  0F 8C 000000C3		jl greska2
+ 00000ADA  80 FC 4A			cmp ah, 'J'
+ 00000ADD  0F 8F 000000BA		jg greska2 ; ako nije prijavi gresku
+ 00000AE3  80 EC 40			sub ah, 64
+ 00000AE6  8A 02			mov al, [edx] ;dohvatanje novog karaktera koji treba da predstavlja broj reda
+ 00000AE8  3C 30			cmp al, '0'
+ 00000AEA  0F 8C 000000AD		jl greska2 ;provera da li je u odgovarajucem opsegu
+ 00000AF0  3C 39			cmp al, '9' 
+ 00000AF2  0F 8F 000000A5		jg greska2 ;ako nije prijavi gresku
+ 00000AF8  2C 30			sub al, 48
+ 00000AFA  A2 0000047F R		mov broj, al
+ 00000AFF  88 25 00000480 R		mov slovo, ah
+ 00000B05  A0 0000047F R		mov al, broj
+ 00000B0A  F7 25 000001F9 R		mul i ;pravljenje linearnog pomeraja za pretragu po ulaznom nizu
+ 00000B10  B4 00			mov ah, 0
+ 00000B12  02 0D 00000480 R		add cl, slovo
+ 00000B18  66| 03 C1			add ax, cx
+					
+ 00000B1B  66| 48			dec ax
+ 00000B1D  33 DB			xor ebx, ebx
+ 00000B1F  33 D2			xor edx, edx
+ 00000B21  66| 8B D8			mov bx, ax
+ 00000B24  80 BB 00000126 R		cmp array1[ebx], '-' ;da li je brodic pogodjen
+	   2D
+ 00000B2B  0F 84 00000091		je promasaj2 ; ako nije idi u promasaj
+ 00000B31  C6 05 0000048C R		mov igra2, 0 ;setuj odgovarajuce flegove kako bi igrac2 ponovo igrao
+	   00
+
+					;prebaci na pomeraj za stampu
+ 00000B38  33 C9			xor ecx, ecx
+ 00000B3A  33 C0			xor eax, eax
+ 00000B3C  A0 0000047F R		mov al, broj
+ 00000B41  F6 25 0000047E R		mul idvan ;mnozenje sa 12 jer je pomeraj drugaciji u tabeli za prikaz
+ 00000B47  02 0D 00000480 R		add cl, slovo
+ 00000B4D  66| 03 C1			add ax, cx
+ 00000B50  33 DB			xor ebx, ebx
+ 00000B52  66| 8B D8			mov bx, ax
+
+ 00000B55  80 BB 00000383 R		cmp crtice1[ebx], '-'
+	   2D
+ 00000B5C  75 53			jne vecIgrano2 ; ako smo odigrali potez da se ne ponavljamo
+
+ 00000B5E  33 C0			xor eax, eax
+ 00000B60  80 2D 00000481 R		sub brojac1, 1 ; kako bisimo znali da kad je kraj
+	   01
+ 00000B67  80 3D 00000481 R		cmp brojac1, 0
+	   00
+ 00000B6E  0F 84 000000C4		je kraj2 ;skoci u kraj2 ako nema vise brodica
+ 00000B74  33 C0			xor eax, eax
+ 00000B76  C6 05 0000048E R		mov prom2, 0 ;setuj flegove kako bi igrac2 mogao ponovo da igra
+	   00
+ 00000B7D  C6 05 0000048D R		mov prom1, 0
+	   00
+ 00000B84  E8 FFFFF477			call paralelnaStampa ;prikazi tabele 
+ 00000B89  BA 00000294 R		mov edx, OFFSET prompt ;izbaci poruku odobravanja
+ 00000B8E  E8 00000000 E		call WriteString
+ 00000B93  E8 00000000 E		call Crlf
+ 00000B98  E9 FFFFFF08			jmp igrac2 ; vrati se na pocetak kako bi igrac2 ponovo igrao
+
+ 00000B9D			greska2:
+ 00000B9D  BA 000002B5 R		mov edx, OFFSET message2 ;prikazi poruku greske
+ 00000BA2  E8 00000000 E		call WriteString
+ 00000BA7  E8 00000000 E		call Crlf
+ 00000BAC  E9 FFFFFF03			jmp unesi2 ;vrati se na ponovni unos
+
+ 00000BB1			vecIgrano2:
+					mWrite <"Vec ste pokusali ovu koordinatu, unesite neku drugu", 0Dh, 0Ah>
+ 000005E5		     1		.data		
+ 000005E5 56 65 63 20 73     1		??000A BYTE "Vec ste pokusali ovu koordinatu, unesite neku drugu", 0Dh, 0Ah,0	
+	   74 65 20 70 6F
+	   6B 75 73 61 6C
+	   69 20 6F 76 75
+	   20 6B 6F 6F 72
+	   64 69 6E 61 74
+	   75 2C 20 75 6E
+	   65 73 69 74 65
+	   20 6E 65 6B 75
+	   20 64 72 75 67
+	   75 0D 0A 00
+ 00000BB1		     1		.code
+ 00000BB1  52		     1		push	edx
+ 00000BB2  BA 000005E5 R     1		mov	edx,OFFSET ??000A
+ 00000BB7  E8 00000000 E     1		call	WriteString
+ 00000BBC  5A		     1		pop	edx
+ 00000BBD  E9 FFFFFEE3			jmp igrac2
+
+					
+ 00000BC2			promasaj2:
+				;prebaci na pomeraj za stampu
+ 00000BC2  33 C9			xor ecx, ecx
+ 00000BC4  33 C0			xor eax, eax
+ 00000BC6  A0 0000047F R		mov al, broj
+ 00000BCB  F6 25 0000047E R		mul idvan
+ 00000BD1  02 0D 00000480 R		add cl, slovo
+ 00000BD7  66| 03 C1			add ax, cx
+ 00000BDA  33 DB			xor ebx, ebx
+ 00000BDC  66| 8B D8			mov bx, ax
+ 00000BDF  80 BB 00000383 R		cmp crtice1[ebx], '-'
+	   2D
+ 00000BE6  75 C9			jne vecIgrano2
+ 00000BE8  C6 05 0000048D R		mov prom1, 0 ; igrac2 je promasio - setuj flag
+	   00
+ 00000BEF  C6 05 0000048B R		mov igra1, 0 ; i da sada igra igrac 1
+	   00
+ 00000BF6  C6 05 0000048E R		mov prom2, 1
+	   01
+ 00000BFD  C6 05 0000048C R		mov igra2, 1
+	   01
+ 00000C04  E8 FFFFF3F7			call paralelnaStampa ; pozovi prikaz tabela na konzoli
+ 00000C09  BA 0000026B R		mov edx, OFFSET message ;prikazi poruku neodobravanja
+ 00000C0E  E8 00000000 E		call WriteString
+ 00000C13  E8 00000000 E		call Crlf
+ 00000C18  E9 FFFFFD10			jmp igrac1
+
+ 00000C1D			kraj1: ;kraj u kome je igrac 1 pobednik
+ 00000C1D  E8 FFFFF3DE			call paralelnaStampa ;stampa personalizovane poruke
+ 00000C22  BA 000002D8 R		mov edx, OFFSET message3
+ 00000C27  E8 00000000 E		call WriteString
+ 00000C2C  E8 00000000 E		call Crlf
+					INVOKE ExitProcess,0
+ 00000C31  6A 00	   *	    push   +000000000h
+ 00000C33  E8 00000000 E   *	    call   ExitProcess
+
+ 00000C38			kraj2: ;kraj u kome je igrac 2 pobednik
+ 00000C38  E8 FFFFF3C3			call paralelnaStampa 
+ 00000C3D  BA 000002FB R		mov edx, OFFSET message4 ;stampa personalizovane poruke
+ 00000C42  E8 00000000 E		call WriteString
+ 00000C47  E8 00000000 E		call Crlf
+					INVOKE ExitProcess,0
+ 00000C4C  6A 00	   *	    push   +000000000h
+ 00000C4E  E8 00000000 E   *	    call   ExitProcess
+
+ 00000C53			quit:
+					exit
+ 00000C53  6A 00	   *	    push   +000000000h
+ 00000C55  E8 00000000 E   *	    call   ExitProcess
+ 00000C5A			main ENDP
+
+				END main
+Microsoft (R) Macro Assembler Version 14.00.24210.0	    05/31/17 17:43:55
+potapanje_podmornica.asm				     Symbols 2 - 1
+
+
+
+
+Macros:
+
+                N a m e                 Type
+
+IsDefined  . . . . . . . . . . .	Func
+Startup  . . . . . . . . . . . .	Proc
+mDumpMem . . . . . . . . . . . .	Proc
+mDump  . . . . . . . . . . . . .	Proc
+mGotoxy  . . . . . . . . . . . .	Proc
+mReadString  . . . . . . . . . .	Proc
+mShowRegister  . . . . . . . . .	Proc
+mShow  . . . . . . . . . . . . .	Proc
+mWriteLn . . . . . . . . . . . .	Proc
+mWriteSpace  . . . . . . . . . .	Proc
+mWriteString . . . . . . . . . .	Proc
+mWrite . . . . . . . . . . . . .	Proc
+
+
+Structures and Unions:
+
+                N a m e                  Size
+                                         Offset      Type
+
+CONSOLE_CURSOR_INFO  . . . . . .	 00000008
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  bVisible . . . . . . . . . . .	 00000004	 DWord
+CONSOLE_SCREEN_BUFFER_INFO . . .	 00000016
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  dwCursorPosition . . . . . . .	 00000004	 DWord
+  wAttributes  . . . . . . . . .	 00000008	 Word
+  srWindow . . . . . . . . . . .	 0000000A	 QWord
+  dwMaximumWindowSize  . . . . .	 00000012	 DWord
+COORD  . . . . . . . . . . . . .	 00000004
+  X  . . . . . . . . . . . . . .	 00000000	 Word
+  Y  . . . . . . . . . . . . . .	 00000002	 Word
+FILETIME . . . . . . . . . . . .	 00000008
+  loDateTime . . . . . . . . . .	 00000000	 DWord
+  hiDateTime . . . . . . . . . .	 00000004	 DWord
+FOCUS_EVENT_RECORD . . . . . . .	 00000004
+  bSetFocus  . . . . . . . . . .	 00000000	 DWord
+FPU_ENVIRON  . . . . . . . . . .	 0000001C
+  controlWord  . . . . . . . . .	 00000000	 Word
+  statusWord . . . . . . . . . .	 00000004	 Word
+  tagWord  . . . . . . . . . . .	 00000008	 Word
+  instrPointerOffset . . . . . .	 0000000C	 DWord
+  instrPointerSelector . . . . .	 00000010	 DWord
+  operandPointerOffset . . . . .	 00000014	 DWord
+  operandPointerSelector . . . .	 00000018	 Word
+INPUT_RECORD . . . . . . . . . .	 00000014
+  EventType  . . . . . . . . . .	 00000000	 Word
+  Event  . . . . . . . . . . . .	 00000004	 XmmWord
+  bKeyDown . . . . . . . . . . .	 00000000	 DWord
+  wRepeatCount . . . . . . . . .	 00000004	 Word
+  wVirtualKeyCode  . . . . . . .	 00000006	 Word
+  wVirtualScanCode . . . . . . .	 00000008	 Word
+  uChar  . . . . . . . . . . . .	 0000000A	 Word
+  UnicodeChar  . . . . . . . . .	 00000000	 Word
+  AsciiChar  . . . . . . . . . .	 00000000	 Byte
+  dwControlKeyState  . . . . . .	 0000000C	 DWord
+  dwMousePosition  . . . . . . .	 00000000	 DWord
+  dwButtonState  . . . . . . . .	 00000004	 DWord
+  dwMouseControlKeyState . . . .	 00000008	 DWord
+  dwEventFlags . . . . . . . . .	 0000000C	 DWord
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  dwCommandId  . . . . . . . . .	 00000000	 DWord
+  bSetFocus  . . . . . . . . . .	 00000000	 DWord
+KEY_EVENT_RECORD . . . . . . . .	 00000010
+  bKeyDown . . . . . . . . . . .	 00000000	 DWord
+  wRepeatCount . . . . . . . . .	 00000004	 Word
+  wVirtualKeyCode  . . . . . . .	 00000006	 Word
+  wVirtualScanCode . . . . . . .	 00000008	 Word
+  uChar  . . . . . . . . . . . .	 0000000A	 Word
+  UnicodeChar  . . . . . . . . .	 00000000	 Word
+  AsciiChar  . . . . . . . . . .	 00000000	 Byte
+  dwControlKeyState  . . . . . .	 0000000C	 DWord
+MENU_EVENT_RECORD  . . . . . . .	 00000004
+  dwCommandId  . . . . . . . . .	 00000000	 DWord
+MOUSE_EVENT_RECORD . . . . . . .	 00000010
+  dwMousePosition  . . . . . . .	 00000000	 DWord
+  dwButtonState  . . . . . . . .	 00000004	 DWord
+  dwMouseControlKeyState . . . .	 00000008	 DWord
+  dwEventFlags . . . . . . . . .	 0000000C	 DWord
+SMALL_RECT . . . . . . . . . . .	 00000008
+  Left . . . . . . . . . . . . .	 00000000	 Word
+  Top  . . . . . . . . . . . . .	 00000002	 Word
+  Right  . . . . . . . . . . . .	 00000004	 Word
+  Bottom . . . . . . . . . . . .	 00000006	 Word
+SYSTEMTIME . . . . . . . . . . .	 00000010
+  wYear  . . . . . . . . . . . .	 00000000	 Word
+  wMonth . . . . . . . . . . . .	 00000002	 Word
+  wDayOfWeek . . . . . . . . . .	 00000004	 Word
+  wDay . . . . . . . . . . . . .	 00000006	 Word
+  wHour  . . . . . . . . . . . .	 00000008	 Word
+  wMinute  . . . . . . . . . . .	 0000000A	 Word
+  wSecond  . . . . . . . . . . .	 0000000C	 Word
+  wMilliseconds  . . . . . . . .	 0000000E	 Word
+WINDOW_BUFFER_SIZE_RECORD  . . .	 00000004
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+FLAT . . . . . . . . . . . . . .	GROUP
+STACK  . . . . . . . . . . . . .	32 Bit	 00001000 Para	  Stack	  'STACK'	 
+_DATA  . . . . . . . . . . . . .	32 Bit	 0000061B Para	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 00000C5A Para	  Public  'CODE'	
+
+
+Procedures, parameters, and locals:
+
+                N a m e                 Type     Value    Attr
+
+CloseFile  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CloseHandle  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Clrscr . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CreateFileA  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CreateOutputFile . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Crlf . . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Delay  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+DumpMem  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+DumpRegs . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ExitProcess  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FileTimeToDosDateTime  . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FileTimeToSystemTime . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FlushConsoleInputBuffer  . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FormatMessageA . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetCommandLineA  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetCommandTail . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleCP . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleCursorInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleMode . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleScreenBufferInfo . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetDateTime  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetFileTime  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetKeyState  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetLastError . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetLocalTime . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetMaxXY . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetMseconds  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetNumberOfConsoleInputEvents  .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetProcessHeap . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetStdHandle . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetSystemTime  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetTextColor . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetTickCount . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Gotoxy . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapAlloc  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapCreate . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapDestroy  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapFree . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapSize . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+IsDigit  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+LocalFree  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MessageBoxA  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MsgBoxAsk  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MsgBox . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+OpenInputFile  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ParseDecimal32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ParseInteger32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+PeekConsoleInputA  . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Random32 . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+RandomRange  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Randomize  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadChar . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadConsoleA . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadConsoleInputA  . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadDec  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFile . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFloat  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFromFile . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadHex  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadInt  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadKeyFlush . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadKey  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadString . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleCursorInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleCursorPosition . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleMode . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleScreenBufferSize . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleTextAttribute  . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleTitleA . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleWindowInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetFilePointer . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetLocalTime . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetTextColor . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ShowFPUStack . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Sleep  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+StrLength  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_compare  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_copy . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_length . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_trim . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_ucase  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SystemTimeToFileTime . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WaitMsg  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteBinB  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteBin . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteChar  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleA  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleOutputAttribute  . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleOutputCharacterA . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteDec . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteFile  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteFloat . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteHexB  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteHex . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteInt . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteStackFrameName  . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteStackFrame  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteString  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteToFile  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteWindowsMsg  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+main . . . . . . . . . . . . . .	P Near	 00000292 _TEXT	Length= 000009C8 Public STDCALL
+  secondPlayerFile . . . . . . .	L Near	 000002AF _TEXT	
+  openFile . . . . . . . . . . .	L Near	 000002CA _TEXT	
+  file_ok  . . . . . . . . . . .	L Near	 000002EF _TEXT	
+  check_buffer_size  . . . . . .	L Near	 00000313 _TEXT	
+  close_file . . . . . . . . . .	L Near	 0000032B _TEXT	
+  inputLoop  . . . . . . . . . .	L Near	 00000344 _TEXT	
+  inputFileError . . . . . . . .	L Near	 0000035B _TEXT	
+  inputFileOk  . . . . . . . . .	L Near	 0000036C _TEXT	
+  secondPlayer . . . . . . . . .	L Near	 0000037C _TEXT	
+  removal  . . . . . . . . . . .	L Near	 00000381 _TEXT	
+  startOfRemoval . . . . . . . .	L Near	 00000386 _TEXT	
+  endOfRemoval . . . . . . . . .	L Near	 0000039E _TEXT	
+  secondPlayerRemoval  . . . . .	L Near	 000003AE _TEXT	
+  continueRemoval  . . . . . . .	L Near	 000003B3 _TEXT	
+  secondPlayerIC . . . . . . . .	L Near	 000003C8 _TEXT	
+  illegalCharacters  . . . . . .	L Near	 000003CD _TEXT	
+  searchLoop . . . . . . . . . .	L Near	 000003D4 _TEXT	
+  invalidCharacterFound  . . . .	L Near	 000003EF _TEXT	
+  continue . . . . . . . . . . .	L Near	 00000400 _TEXT	
+  secondPlayerPC . . . . . . . .	L Near	 00000410 _TEXT	
+  placementCheck . . . . . . . .	L Near	 00000415 _TEXT	
+  cheatingLoop . . . . . . . . .	L Near	 0000044A _TEXT	
+  checkLeft  . . . . . . . . . .	L Near	 000004C8 _TEXT	
+  verticalShip . . . . . . . . .	L Near	 000004DA _TEXT	
+  checkBottom  . . . . . . . . .	L Near	 000004F6 _TEXT	
+  horizontalShip . . . . . . . .	L Near	 00000508 _TEXT	
+  diagonal . . . . . . . . . . .	L Near	 0000051C _TEXT	
+  hyphen . . . . . . . . . . . .	L Near	 0000054F _TEXT	
+  incJ . . . . . . . . . . . . .	L Near	 0000055A _TEXT	
+  topRow . . . . . . . . . . . .	L Near	 0000057C _TEXT	
+  checkLeftTR  . . . . . . . . .	L Near	 000005B4 _TEXT	
+  verticalShipTR . . . . . . . .	L Near	 000005C6 _TEXT	
+  horizontalShipTR . . . . . . .	L Near	 000005D2 _TEXT	
+  diagonalTR . . . . . . . . . .	L Near	 000005DC _TEXT	
+  topLeftCorner  . . . . . . . .	L Near	 000005FB _TEXT	
+  horizontalShipTLC  . . . . . .	L Near	 00000601 _TEXT	
+  verticalShipTLC  . . . . . . .	L Near	 0000060D _TEXT	
+  diagonalTLC  . . . . . . . . .	L Near	 00000621 _TEXT	
+  topRightCorner . . . . . . . .	L Near	 00000636 _TEXT	
+  horizontalShipTRC  . . . . . .	L Near	 0000063C _TEXT	
+  verticalShipTRC  . . . . . . .	L Near	 00000648 _TEXT	
+  diagonalTRC  . . . . . . . . .	L Near	 0000065C _TEXT	
+  leftColumn . . . . . . . . . .	L Near	 00000671 _TEXT	
+  checkDownLC  . . . . . . . . .	L Near	 00000693 _TEXT	
+  horizontalShipLC . . . . . . .	L Near	 000006A5 _TEXT	
+  verticalShipLC . . . . . . . .	L Near	 000006B1 _TEXT	
+  diagonalLC . . . . . . . . . .	L Near	 000006BB _TEXT	
+  rightColumn  . . . . . . . . .	L Near	 000006DA _TEXT	
+  checkDownRC  . . . . . . . . .	L Near	 000006FC _TEXT	
+  horizontalShipRC . . . . . . .	L Near	 0000070E _TEXT	
+  verticalShipRC . . . . . . . .	L Near	 0000071A _TEXT	
+  diagonalRC . . . . . . . . . .	L Near	 00000724 _TEXT	
+  bottomRow  . . . . . . . . . .	L Near	 00000743 _TEXT	
+  checkLeftBR  . . . . . . . . .	L Near	 0000077B _TEXT	
+  verticalShipBR . . . . . . . .	L Near	 00000789 _TEXT	
+  horizontalShipBR . . . . . . .	L Near	 00000791 _TEXT	
+  diagonalBR . . . . . . . . . .	L Near	 00000797 _TEXT	
+  bottomLeftCorner . . . . . . .	L Near	 000007AE _TEXT	
+  horizontalShipBLC  . . . . . .	L Near	 000007B4 _TEXT	
+  verticalShipBLC  . . . . . . .	L Near	 000007BC _TEXT	
+  diagonalBLC  . . . . . . . . .	L Near	 000007C8 _TEXT	
+  bottomRightCorner  . . . . . .	L Near	 000007D9 _TEXT	
+  horizontalShipBRC  . . . . . .	L Near	 000007DF _TEXT	
+  verticalShipBRC  . . . . . . .	L Near	 000007E7 _TEXT	
+  diagonalBRC  . . . . . . . . .	L Near	 000007F3 _TEXT	
+  cheatingFound  . . . . . . . .	L Near	 00000806 _TEXT	
+  notCheating  . . . . . . . . .	L Near	 00000817 _TEXT	
+  secondPlayerNum  . . . . . . .	L Near	 00000827 _TEXT	
+  numCheck . . . . . . . . . . .	L Near	 0000082C _TEXT	
+  countingLoop . . . . . . . . .	L Near	 00000836 _TEXT	
+  arrayIteration . . . . . . . .	L Near	 00000855 _TEXT	
+  incCnt . . . . . . . . . . . .	L Near	 0000086A _TEXT	
+  endOfString  . . . . . . . . .	L Near	 00000882 _TEXT	
+  incTwo . . . . . . . . . . . .	L Near	 000008A9 _TEXT	
+  incThree . . . . . . . . . . .	L Near	 000008B1 _TEXT	
+  incFour  . . . . . . . . . . .	L Near	 000008BC _TEXT	
+  incFive  . . . . . . . . . . .	L Near	 000008C7 _TEXT	
+  finishedCounting . . . . . . .	L Near	 000008D2 _TEXT	
+  wrongNumber  . . . . . . . . .	L Near	 000008F8 _TEXT	
+  allIsWell  . . . . . . . . . .	L Near	 00000909 _TEXT	
+  igrac1 . . . . . . . . . . . .	L Near	 0000092D _TEXT	
+  unesi1 . . . . . . . . . . . .	L Near	 0000093C _TEXT	
+  ucitaj1  . . . . . . . . . . .	L Near	 0000094B _TEXT	
+  greska1  . . . . . . . . . . .	L Near	 00000A28 _TEXT	
+  vecIgrano1 . . . . . . . . . .	L Near	 00000A3C _TEXT	
+  promasaj1  . . . . . . . . . .	L Near	 00000A4D _TEXT	
+  igrac2 . . . . . . . . . . . .	L Near	 00000AA5 _TEXT	
+  unesi2 . . . . . . . . . . . .	L Near	 00000AB4 _TEXT	
+  ucitaj2  . . . . . . . . . . .	L Near	 00000AC3 _TEXT	
+  greska2  . . . . . . . . . . .	L Near	 00000B9D _TEXT	
+  vecIgrano2 . . . . . . . . . .	L Near	 00000BB1 _TEXT	
+  promasaj2  . . . . . . . . . .	L Near	 00000BC2 _TEXT	
+  kraj1  . . . . . . . . . . . .	L Near	 00000C1D _TEXT	
+  kraj2  . . . . . . . . . . . .	L Near	 00000C38 _TEXT	
+  quit . . . . . . . . . . . . .	L Near	 00000C53 _TEXT	
+paralelnaStampa  . . . . . . . .	P Near	 00000000 _TEXT	Length= 00000173 Public STDCALL
+  igrac1 . . . . . . . . . . . .	L Near	 00000069 _TEXT	
+  igrac2 . . . . . . . . . . . .	L Near	 00000079 _TEXT	
+  omas1  . . . . . . . . . . . .	L Near	 00000089 _TEXT	
+  omas2  . . . . . . . . . . . .	L Near	 00000099 _TEXT	
+  dodajbr1 . . . . . . . . . . .	L Near	 000000A7 _TEXT	
+  dodajbr2 . . . . . . . . . . .	L Near	 000000E2 _TEXT	
+  istampaj . . . . . . . . . . .	L Near	 00000127 _TEXT	
+  predji . . . . . . . . . . . .	L Near	 00000144 _TEXT	
+  lupiendl . . . . . . . . . . .	L Near	 00000147 _TEXT	
+  istampaj2  . . . . . . . . . .	L Near	 0000015C _TEXT	
+  kraj . . . . . . . . . . . . .	L Near	 00000172 _TEXT	
+printf . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+scanf  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+stampa_blank . . . . . . . . . .	P Near	 00000173 _TEXT	Length= 0000011F Public STDCALL
+  dodajbr1 . . . . . . . . . . .	L Near	 000001C6 _TEXT	
+  dodajbr2 . . . . . . . . . . .	L Near	 00000201 _TEXT	
+  istampaj . . . . . . . . . . .	L Near	 00000246 _TEXT	
+  predji . . . . . . . . . . . .	L Near	 00000263 _TEXT	
+  lupiendl . . . . . . . . . . .	L Near	 00000266 _TEXT	
+  istampaj2  . . . . . . . . . .	L Near	 0000027B _TEXT	
+  kraj . . . . . . . . . . . . .	L Near	 00000291 _TEXT	
+wsprintfA  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+??0000 . . . . . . . . . . . . .	Byte	 0000048F _DATA	
+??0001 . . . . . . . . . . . . .	Byte	 000004B0 _DATA	
+??0002 . . . . . . . . . . . . .	Byte	 000004D1 _DATA	
+??0003 . . . . . . . . . . . . .	Byte	 000004EE _DATA	
+??0004 . . . . . . . . . . . . .	Byte	 0000050F _DATA	
+??0005 . . . . . . . . . . . . .	Byte	 00000530 _DATA	
+??0006 . . . . . . . . . . . . .	Byte	 0000054C _DATA	
+??0007 . . . . . . . . . . . . .	Byte	 00000574 _DATA	
+??0008 . . . . . . . . . . . . .	Byte	 00000589 _DATA	
+??0009 . . . . . . . . . . . . .	Byte	 000005AF _DATA	
+??000A . . . . . . . . . . . . .	Byte	 000005E5 _DATA	
+@CodeSize  . . . . . . . . . . .	Number	 00000000h   
+@DataSize  . . . . . . . . . . .	Number	 00000000h   
+@Interface . . . . . . . . . . .	Number	 00000003h   
+@Model . . . . . . . . . . . . .	Number	 00000007h   
+@code  . . . . . . . . . . . . .	Text   	 _TEXT
+@data  . . . . . . . . . . . . .	Text   	 FLAT
+@fardata?  . . . . . . . . . . .	Text   	 FLAT
+@fardata . . . . . . . . . . . .	Text   	 FLAT
+@stack . . . . . . . . . . . . .	Text   	 FLAT
+ALT_MASK . . . . . . . . . . . .	Number	 00000003h   
+BUFFER_SIZE  . . . . . . . . . .	Number	 000000D1h   
+CAPSLOCK_ON  . . . . . . . . . .	Number	 00000080h   
+CREATE_ALWAYS  . . . . . . . . .	Number	 00000002h   
+CREATE_NEW . . . . . . . . . . .	Number	 00000001h   
+CTRL_MASK  . . . . . . . . . . .	Number	 0000000Ch   
+CreateFile . . . . . . . . . . .	Text   	 CreateFileA
+DO_NOT_SHARE . . . . . . . . . .	Number	 00000000h   
+ENABLE_ECHO_INPUT  . . . . . . .	Number	 00000004h   
+ENABLE_LINE_INPUT  . . . . . . .	Number	 00000002h   
+ENABLE_MOUSE_INPUT . . . . . . .	Number	 00000010h   
+ENABLE_PROCESSED_INPUT . . . . .	Number	 00000001h   
+ENABLE_PROCESSED_OUTPUT  . . . .	Number	 00000001h   
+ENABLE_WINDOW_INPUT  . . . . . .	Number	 00000008h   
+ENABLE_WRAP_AT_EOL_OUTPUT  . . .	Number	 00000002h   
+ENHANCED_KEY . . . . . . . . . .	Number	 00000100h   
+FALSE  . . . . . . . . . . . . .	Number	 00000000h   
+FILE_APPEND_DATA . . . . . . . .	Number	 00000004h   
+FILE_ATTRIBUTE_ARCHIVE . . . . .	Number	 00000020h   
+FILE_ATTRIBUTE_COMPRESSED  . . .	Number	 00000800h   
+FILE_ATTRIBUTE_DEVICE  . . . . .	Number	 00000040h   
+FILE_ATTRIBUTE_DIRECTORY . . . .	Number	 00000010h   
+FILE_ATTRIBUTE_ENCRYPTED . . . .	Number	 00004000h   
+FILE_ATTRIBUTE_HIDDEN  . . . . .	Number	 00000002h   
+FILE_ATTRIBUTE_NORMAL  . . . . .	Number	 00000080h   
+FILE_ATTRIBUTE_NOT_CONTENT_INDEXED .	Number	 00002000h   
+FILE_ATTRIBUTE_OFFLINE . . . . .	Number	 00001000h   
+FILE_ATTRIBUTE_READONLY  . . . .	Number	 00000001h   
+FILE_ATTRIBUTE_REPARSE_POINT . .	Number	 00000400h   
+FILE_ATTRIBUTE_SPARSE_FILE . . .	Number	 00000200h   
+FILE_ATTRIBUTE_SYSTEM  . . . . .	Number	 00000004h   
+FILE_ATTRIBUTE_TEMPORARY . . . .	Number	 00000100h   
+FILE_BEGIN . . . . . . . . . . .	Number	 00000000h   
+FILE_CURRENT . . . . . . . . . .	Number	 00000001h   
+FILE_DELETE_CHILD  . . . . . . .	Number	 00000040h   
+FILE_END . . . . . . . . . . . .	Number	 00000002h   
+FILE_READ_DATA . . . . . . . . .	Number	 00000001h   
+FILE_SHARE_DELETE  . . . . . . .	Number	 00000004h   
+FILE_SHARE_READ  . . . . . . . .	Number	 00000001h   
+FILE_SHARE_WRITE . . . . . . . .	Number	 00000002h   
+FILE_WRITE_DATA  . . . . . . . .	Number	 00000002h   
+FOCUS_EVENT  . . . . . . . . . .	Number	 00000010h   
+FORMAT_MESSAGE_ALLOCATE_BUFFER .	Number	 00000100h   
+FORMAT_MESSAGE_FROM_SYSTEM . . .	Number	 00001000h   
+FormatMessage  . . . . . . . . .	Text   	 FormatMessageA
+GENERIC_ALL  . . . . . . . . . .	Number	 10000000h   
+GENERIC_EXECUTE  . . . . . . . .	Number	 20000000h   
+GENERIC_READ . . . . . . . . . .	Number	 -80000000h   
+GENERIC_WRITE  . . . . . . . . .	Number	 40000000h   
+GetCommandLine . . . . . . . . .	Text   	 GetCommandLineA
+HANDLE . . . . . . . . . . . . .	Text   	 DWORD
+HEAP_GENERATE_EXCEPTIONS . . . .	Number	 00000004h   
+HEAP_GROWABLE  . . . . . . . . .	Number	 00000002h   
+HEAP_NO_SERIALIZE  . . . . . . .	Number	 00000001h   
+HEAP_REALLOC_IN_PLACE_ONLY . . .	Number	 00000010h   
+HEAP_ZERO_MEMORY . . . . . . . .	Number	 00000008h   
+IDABORT  . . . . . . . . . . . .	Number	 00000003h   
+IDCANCEL . . . . . . . . . . . .	Number	 00000002h   
+IDCLOSE  . . . . . . . . . . . .	Number	 00000008h   
+IDCONTINUE . . . . . . . . . . .	Number	 0000000Bh   
+IDHELP . . . . . . . . . . . . .	Number	 00000009h   
+IDIGNORE . . . . . . . . . . . .	Number	 00000005h   
+IDNO . . . . . . . . . . . . . .	Number	 00000007h   
+IDOK . . . . . . . . . . . . . .	Number	 00000001h   
+IDRETRY  . . . . . . . . . . . .	Number	 00000004h   
+IDTIMEOUT  . . . . . . . . . . .	Number	 00007D00h   
+IDTRYAGAIN . . . . . . . . . . .	Number	 0000000Ah   
+IDYES  . . . . . . . . . . . . .	Number	 00000006h   
+INVALID_HANDLE_VALUE . . . . . .	Number	 -00000001h   
+KBDOWN_FLAG  . . . . . . . . . .	Number	 00000001h   
+KEY_EVENT  . . . . . . . . . . .	Number	 00000001h   
+KEY_MASKS  . . . . . . . . . . .	Number	 0000001Fh   
+LEFT_ALT_PRESSED . . . . . . . .	Number	 00000002h   
+LEFT_CTRL_PRESSED  . . . . . . .	Number	 00000008h   
+MAX  . . . . . . . . . . . . . .	Number	 00000004h   
+MB_ABORTRETRYIGNORE  . . . . . .	Number	 00000002h   
+MB_APPLMODAL . . . . . . . . . .	Number	 00000000h   
+MB_CANCELTRYCONTINUE . . . . . .	Number	 00000006h   
+MB_DEFBUTTON1  . . . . . . . . .	Number	 00000000h   
+MB_DEFBUTTON2  . . . . . . . . .	Number	 00000100h   
+MB_DEFBUTTON3  . . . . . . . . .	Number	 00000200h   
+MB_DEFBUTTON4  . . . . . . . . .	Number	 00000300h   
+MB_HELP  . . . . . . . . . . . .	Number	 00004000h   
+MB_ICONASTERISK  . . . . . . . .	Number	 00000040h   
+MB_ICONERROR . . . . . . . . . .	Number	 00000010h   
+MB_ICONEXCLAMATION . . . . . . .	Number	 00000030h   
+MB_ICONHAND  . . . . . . . . . .	Number	 00000010h   
+MB_ICONINFORMATION . . . . . . .	Number	 00000040h   
+MB_ICONQUESTION  . . . . . . . .	Number	 00000020h   
+MB_ICONSTOP  . . . . . . . . . .	Number	 00000010h   
+MB_ICONWARNING . . . . . . . . .	Number	 00000030h   
+MB_OKCANCEL  . . . . . . . . . .	Number	 00000001h   
+MB_OK  . . . . . . . . . . . . .	Number	 00000000h   
+MB_RETRYCANCEL . . . . . . . . .	Number	 00000005h   
+MB_SYSTEMMODAL . . . . . . . . .	Number	 00001000h   
+MB_TASKMODAL . . . . . . . . . .	Number	 00002000h   
+MB_USERICON  . . . . . . . . . .	Number	 00000080h   
+MB_YESNOCANCEL . . . . . . . . .	Number	 00000003h   
+MB_YESNO . . . . . . . . . . . .	Number	 00000004h   
+MENU_EVENT . . . . . . . . . . .	Number	 00000008h   
+MOUSE_EVENT  . . . . . . . . . .	Number	 00000002h   
+MessageBox . . . . . . . . . . .	Text   	 MessageBoxA
+NULL . . . . . . . . . . . . . .	Number	 00000000h   
+NUMLOCK_ON . . . . . . . . . . .	Number	 00000020h   
+OPEN_ALWAYS  . . . . . . . . . .	Number	 00000004h   
+OPEN_EXISTING  . . . . . . . . .	Number	 00000003h   
+PeekConsoleInput . . . . . . . .	Text   	 PeekConsoleInputA
+RIGHT_ALT_PRESSED  . . . . . . .	Number	 00000001h   
+RIGHT_CTRL_PRESSED . . . . . . .	Number	 00000004h   
+ReadConsoleInput . . . . . . . .	Text   	 ReadConsoleInputA
+ReadConsole  . . . . . . . . . .	Text   	 ReadConsoleA
+SCROLLLOCK_ON  . . . . . . . . .	Number	 00000040h   
+SHIFT_MASK . . . . . . . . . . .	Number	 00000010h   
+SHIFT_PRESSED  . . . . . . . . .	Number	 00000010h   
+STD_ERROR_HANDLE . . . . . . . .	Number	 -0000000Ch   
+STD_INPUT_HANDLE . . . . . . . .	Number	 -0000000Ah   
+STD_OUTPUT_HANDLE  . . . . . . .	Number	 -0000000Bh   
+SetConsoleTitle  . . . . . . . .	Text   	 SetConsoleTitleA
+TAB  . . . . . . . . . . . . . .	Number	 00000009h   
+TRUE . . . . . . . . . . . . . .	Number	 00000001h   
+TRUNCATE_EXISTING  . . . . . . .	Number	 00000005h   
+VALID_SIZE . . . . . . . . . . .	Number	 00000064h   
+VK_11  . . . . . . . . . . . . .	Number	 000000BDh   
+VK_12  . . . . . . . . . . . . .	Number	 000000BBh   
+VK_ADD . . . . . . . . . . . . .	Number	 0000006Bh   
+VK_BACK  . . . . . . . . . . . .	Number	 00000008h   
+VK_CANCEL  . . . . . . . . . . .	Number	 00000003h   
+VK_CAPITAL . . . . . . . . . . .	Number	 00000014h   
+VK_CLEAR . . . . . . . . . . . .	Number	 0000000Ch   
+VK_CONTROL . . . . . . . . . . .	Number	 00000011h   
+VK_DECIMAL . . . . . . . . . . .	Number	 0000006Eh   
+VK_DELETE  . . . . . . . . . . .	Number	 0000002Eh   
+VK_DIVIDE  . . . . . . . . . . .	Number	 0000006Fh   
+VK_DOWN  . . . . . . . . . . . .	Number	 00000028h   
+VK_END . . . . . . . . . . . . .	Number	 00000023h   
+VK_ESCAPE  . . . . . . . . . . .	Number	 0000001Bh   
+VK_EXECUTE . . . . . . . . . . .	Number	 0000002Bh   
+VK_F10 . . . . . . . . . . . . .	Number	 00000079h   
+VK_F11 . . . . . . . . . . . . .	Number	 0000007Ah   
+VK_F12 . . . . . . . . . . . . .	Number	 0000007Bh   
+VK_F13 . . . . . . . . . . . . .	Number	 0000007Ch   
+VK_F14 . . . . . . . . . . . . .	Number	 0000007Dh   
+VK_F15 . . . . . . . . . . . . .	Number	 0000007Eh   
+VK_F16 . . . . . . . . . . . . .	Number	 0000007Fh   
+VK_F17 . . . . . . . . . . . . .	Number	 00000080h   
+VK_F18 . . . . . . . . . . . . .	Number	 00000081h   
+VK_F19 . . . . . . . . . . . . .	Number	 00000082h   
+VK_F1  . . . . . . . . . . . . .	Number	 00000070h   
+VK_F20 . . . . . . . . . . . . .	Number	 00000083h   
+VK_F21 . . . . . . . . . . . . .	Number	 00000084h   
+VK_F22 . . . . . . . . . . . . .	Number	 00000085h   
+VK_F23 . . . . . . . . . . . . .	Number	 00000086h   
+VK_F24 . . . . . . . . . . . . .	Number	 00000087h   
+VK_F2  . . . . . . . . . . . . .	Number	 00000071h   
+VK_F3  . . . . . . . . . . . . .	Number	 00000072h   
+VK_F4  . . . . . . . . . . . . .	Number	 00000073h   
+VK_F5  . . . . . . . . . . . . .	Number	 00000074h   
+VK_F6  . . . . . . . . . . . . .	Number	 00000075h   
+VK_F7  . . . . . . . . . . . . .	Number	 00000076h   
+VK_F8  . . . . . . . . . . . . .	Number	 00000077h   
+VK_F9  . . . . . . . . . . . . .	Number	 00000078h   
+VK_HELP  . . . . . . . . . . . .	Number	 0000002Fh   
+VK_HOME  . . . . . . . . . . . .	Number	 00000024h   
+VK_INSERT  . . . . . . . . . . .	Number	 0000002Dh   
+VK_LBUTTON . . . . . . . . . . .	Number	 00000001h   
+VK_LCONTROL  . . . . . . . . . .	Number	 000000A2h   
+VK_LEFT  . . . . . . . . . . . .	Number	 00000025h   
+VK_LMENU . . . . . . . . . . . .	Number	 000000A4h   
+VK_LSHIFT  . . . . . . . . . . .	Number	 000000A0h   
+VK_MENU  . . . . . . . . . . . .	Number	 00000012h   
+VK_MULTIPLY  . . . . . . . . . .	Number	 0000006Ah   
+VK_NEXT  . . . . . . . . . . . .	Number	 00000022h   
+VK_NUMLOCK . . . . . . . . . . .	Number	 00000090h   
+VK_NUMPAD0 . . . . . . . . . . .	Number	 00000060h   
+VK_NUMPAD1 . . . . . . . . . . .	Number	 00000061h   
+VK_NUMPAD2 . . . . . . . . . . .	Number	 00000062h   
+VK_NUMPAD3 . . . . . . . . . . .	Number	 00000063h   
+VK_NUMPAD4 . . . . . . . . . . .	Number	 00000064h   
+VK_NUMPAD5 . . . . . . . . . . .	Number	 00000065h   
+VK_NUMPAD6 . . . . . . . . . . .	Number	 00000066h   
+VK_NUMPAD7 . . . . . . . . . . .	Number	 00000067h   
+VK_NUMPAD8 . . . . . . . . . . .	Number	 00000068h   
+VK_NUMPAD9 . . . . . . . . . . .	Number	 00000069h   
+VK_PAUSE . . . . . . . . . . . .	Number	 00000013h   
+VK_PRINT . . . . . . . . . . . .	Number	 0000002Ah   
+VK_PRIOR . . . . . . . . . . . .	Number	 00000021h   
+VK_RBUTTON . . . . . . . . . . .	Number	 00000002h   
+VK_RCONTROL  . . . . . . . . . .	Number	 000000A3h   
+VK_RETURN  . . . . . . . . . . .	Number	 0000000Dh   
+VK_RIGHT . . . . . . . . . . . .	Number	 00000027h   
+VK_RMENU . . . . . . . . . . . .	Number	 000000A5h   
+VK_RSHIFT  . . . . . . . . . . .	Number	 000000A1h   
+VK_SCROLL  . . . . . . . . . . .	Number	 00000091h   
+VK_SEPARATER . . . . . . . . . .	Number	 0000006Ch   
+VK_SHIFT . . . . . . . . . . . .	Number	 00000010h   
+VK_SNAPSHOT  . . . . . . . . . .	Number	 0000002Ch   
+VK_SPACE . . . . . . . . . . . .	Number	 00000020h   
+VK_SUBTRACT  . . . . . . . . . .	Number	 0000006Dh   
+VK_TAB . . . . . . . . . . . . .	Number	 00000009h   
+VK_UP  . . . . . . . . . . . . .	Number	 00000026h   
+WINDOW_BUFFER_SIZE_EVENT . . . .	Number	 00000004h   
+WriteConsoleOutputCharacter  . .	Text   	 WriteConsoleOutputCharacterA
+WriteConsole . . . . . . . . . .	Text   	 WriteConsoleA
+allowedCharacters  . . . . . . .	Byte	 000001EE _DATA	
+array1 . . . . . . . . . . . . .	Byte	 00000126 _DATA	
+array2 . . . . . . . . . . . . .	Byte	 0000018A _DATA	
+arraySize  . . . . . . . . . . .	Number	 0000000Ah   
+array  . . . . . . . . . . . . .	Byte	 00000379 _DATA	
+black  . . . . . . . . . . . . .	Number	 00000000h   
+blue . . . . . . . . . . . . . .	Number	 00000001h   
+brojac1  . . . . . . . . . . . .	Byte	 00000481 _DATA	
+brojac2  . . . . . . . . . . . .	Byte	 00000482 _DATA	
+broj . . . . . . . . . . . . . .	Byte	 0000047F _DATA	
+brown  . . . . . . . . . . . . .	Number	 00000006h   
+buffer . . . . . . . . . . . . .	Byte	 00000000 _DATA	
+bytesWritten . . . . . . . . . .	DWord	 00000487 _DATA	
+cnt  . . . . . . . . . . . . . .	Byte	 000000D1 _DATA	
+consoleHandle  . . . . . . . . .	DWord	 00000483 _DATA	
+crtice1Size  . . . . . . . . . .	Number	 00000078h   
+crtice1  . . . . . . . . . . . .	Byte	 00000383 _DATA	
+crtice2Size  . . . . . . . . . .	Number	 00000078h   
+crtice2  . . . . . . . . . . . .	Byte	 000003FB _DATA	
+cyan . . . . . . . . . . . . . .	Number	 00000003h   
+distance . . . . . . . . . . . .	Byte	 00000207 _DATA	
+endl . . . . . . . . . . . . . .	Text   	 0dh,0ah
+exit . . . . . . . . . . . . . .	Text   	 INVOKE ExitProcess,0
+fileHandle . . . . . . . . . . .	DWord	 00000122 _DATA	
+filename . . . . . . . . . . . .	Byte	 000000D2 _DATA	
+gray . . . . . . . . . . . . . .	Number	 00000008h   
+green  . . . . . . . . . . . . .	Number	 00000002h   
+h  . . . . . . . . . . . . . . .	Byte	 00000201 _DATA	
+idvan  . . . . . . . . . . . . .	Byte	 0000047E _DATA	
+igra1  . . . . . . . . . . . . .	Byte	 0000048B _DATA	
+igra2  . . . . . . . . . . . . .	Byte	 0000048C _DATA	
+ind  . . . . . . . . . . . . . .	Word	 00000475 _DATA	
+i  . . . . . . . . . . . . . . .	DWord	 000001F9 _DATA	
+jind . . . . . . . . . . . . . .	Word	 00000473 _DATA	
+j  . . . . . . . . . . . . . . .	DWord	 000001FD _DATA	
+k  . . . . . . . . . . . . . . .	Word	 00000477 _DATA	
+lightBlue  . . . . . . . . . . .	Number	 00000009h   
+lightCyan  . . . . . . . . . . .	Number	 0000000Bh   
+lightGray  . . . . . . . . . . .	Number	 00000007h   
+lightGreen . . . . . . . . . . .	Number	 0000000Ah   
+lightMagenta . . . . . . . . . .	Number	 0000000Dh   
+lightRed . . . . . . . . . . . .	Number	 0000000Ch   
+magenta  . . . . . . . . . . . .	Number	 00000005h   
+message2Size . . . . . . . . . .	DWord	 000002D4 _DATA	
+message2 . . . . . . . . . . . .	Byte	 000002B5 _DATA	
+message3Size . . . . . . . . . .	DWord	 000002F7 _DATA	
+message3 . . . . . . . . . . . .	Byte	 000002D8 _DATA	
+message4Size . . . . . . . . . .	DWord	 0000031A _DATA	
+message4 . . . . . . . . . . . .	Byte	 000002FB _DATA	
+message5Size . . . . . . . . . .	DWord	 00000375 _DATA	
+message5 . . . . . . . . . . . .	Byte	 0000031E _DATA	
+message6 . . . . . . . . . . . .	Byte	 00000208 _DATA	
+message7 . . . . . . . . . . . .	Byte	 00000211 _DATA	
+message8 . . . . . . . . . . . .	Byte	 0000021A _DATA	
+messageSize  . . . . . . . . . .	DWord	 00000290 _DATA	
+message  . . . . . . . . . . . .	Byte	 0000026B _DATA	
+numFive  . . . . . . . . . . . .	Byte	 00000202 _DATA	
+numFour  . . . . . . . . . . . .	Byte	 00000203 _DATA	
+numThree . . . . . . . . . . . .	Byte	 00000204 _DATA	
+numTwo . . . . . . . . . . . . .	Byte	 00000205 _DATA	
+player . . . . . . . . . . . . .	Byte	 00000206 _DATA	
+prom1  . . . . . . . . . . . . .	Byte	 0000048D _DATA	
+prom2  . . . . . . . . . . . . .	Byte	 0000048E _DATA	
+promptSize . . . . . . . . . . .	DWord	 000002B1 _DATA	
+prompt . . . . . . . . . . . . .	Byte	 00000294 _DATA	
+red  . . . . . . . . . . . . . .	Number	 00000004h   
+slovo  . . . . . . . . . . . . .	Byte	 00000480 _DATA	
+unos . . . . . . . . . . . . . .	Byte	 00000479 _DATA	
+white  . . . . . . . . . . . . .	Number	 0000000Fh   
+wsprintf . . . . . . . . . . . .	Text   	 wsprintfA
+yellow . . . . . . . . . . . . .	Number	 0000000Eh   
+
+	   0 Warnings
+	   0 Errors
